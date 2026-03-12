@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Nexus Chat',
-  description: 'Nexus IO Chat — Real-time messaging',
+  description: 'Nexus IO Internal — Real-time messaging',
 }
 
 export default function RootLayout({
