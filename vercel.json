@@ -2,5 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "next build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "functions": {
+    "src/app/api/inngest/route.js": { "maxDuration": 300 },
+    "src/app/api/submit/route.js": { "maxDuration": 60 }
+  }
 }

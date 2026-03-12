@@ -1,0 +1,51 @@
+employer_name,job_title,wage,city,state,visa_class,approval_status,industry,year
+Stripe Inc,Software Engineer,185000,San Francisco,CA,H-1B1,Certified,Fintech,2024
+Plaid Inc,Backend Engineer,175000,San Francisco,CA,H-1B1,Certified,Fintech,2024
+Brex Inc,Senior Software Engineer,195000,San Francisco,CA,H-1B1,Certified,Fintech,2024
+Rippling,Full Stack Developer,170000,San Francisco,CA,H-1B1,Certified,HR Tech,2024
+Notion Labs Inc,Software Engineer,180000,San Francisco,CA,H-1B1,Certified,Productivity,2024
+Figma Inc,Frontend Engineer,190000,San Francisco,CA,H-1B1,Certified,Design Tools,2024
+Vercel Inc,Software Engineer,175000,San Francisco,CA,H-1B1,Certified,Developer Tools,2024
+Retool Inc,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,Developer Tools,2024
+Scale AI Inc,Machine Learning Engineer,200000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+Anthropic,Research Engineer,210000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+OpenAI Inc,Software Engineer,205000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+Databricks Inc,Senior Data Engineer,195000,San Francisco,CA,H-1B1,Certified,Data Infrastructure,2024
+Confluent Inc,Software Engineer,180000,Mountain View,CA,H-1B1,Certified,Data Infrastructure,2024
+HashiCorp Inc,Software Engineer,175000,San Francisco,CA,H-1B1,Certified,Developer Tools,2024
+Datadog Inc,Software Engineer,185000,New York,NY,H-1B1,Certified,Developer Tools,2024
+MongoDB Inc,Software Engineer,180000,New York,NY,H-1B1,Certified,Database,2024
+Cockroach Labs,Backend Engineer,175000,New York,NY,H-1B1,Certified,Database,2024
+Airtable Inc,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,Productivity,2024
+Webflow Inc,Frontend Engineer,165000,San Francisco,CA,H-1B1,Certified,Design Tools,2024
+Linear,Software Engineer,175000,San Francisco,CA,H-1B1,Certified,Developer Tools,2024
+Supabase Inc,Backend Engineer,165000,San Francisco,CA,H-1B1,Certified,Developer Tools,2024
+Anyscale Inc,ML Infrastructure Engineer,190000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+Weights and Biases,ML Engineer,185000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+Hugging Face Inc,Research Engineer,180000,New York,NY,H-1B1,Certified,AI/ML,2024
+Cohere Inc,Software Engineer,175000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+Mercury Technologies,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,Fintech,2024
+Ramp Financial,Software Engineer,180000,New York,NY,H-1B1,Certified,Fintech,2024
+Modern Treasury,Backend Engineer,170000,San Francisco,CA,H-1B1,Certified,Fintech,2024
+Flex,Software Engineer,160000,New York,NY,H-1B1,Certified,Fintech,2024
+Deel Inc,Software Engineer,165000,San Francisco,CA,H-1B1,Certified,HR Tech,2024
+Gusto Inc,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,HR Tech,2024
+Lattice Inc,Full Stack Developer,165000,San Francisco,CA,H-1B1,Certified,HR Tech,2024
+Vanta Inc,Security Engineer,175000,San Francisco,CA,H-1B1,Certified,Security,2024
+Snyk Inc,Software Engineer,170000,Boston,MA,H-1B1,Certified,Security,2024
+1Password Inc,Software Engineer,165000,Austin,TX,H-1B1,Certified,Security,2024
+Neon Inc,Database Engineer,175000,San Francisco,CA,H-1B1,Certified,Database,2024
+PlanetScale Inc,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,Database,2024
+Temporal Technologies,Software Engineer,180000,Seattle,WA,H-1B1,Certified,Developer Tools,2024
+PostHog Inc,Full Stack Developer,165000,San Francisco,CA,H-1B1,Certified,Analytics,2024
+Amplitude Inc,Software Engineer,175000,San Francisco,CA,H-1B1,Certified,Analytics,2024
+Segment (Twilio),Data Engineer,170000,San Francisco,CA,H-1B1,Certified,Analytics,2024
+Watershed Technology,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,Climate Tech,2024
+Pachama Inc,ML Engineer,165000,San Francisco,CA,H-1B1,Certified,Climate Tech,2024
+Wiz Inc,Cloud Security Engineer,195000,New York,NY,H-1B1,Certified,Security,2024
+Lacework Inc,Software Engineer,180000,San Jose,CA,H-1B1,Certified,Security,2024
+Zip Inc,Software Engineer,165000,San Francisco,CA,H-1B1,Certified,Procurement,2024
+Ramp Inc,Backend Engineer,180000,New York,NY,H-1B1,Certified,Fintech,2024
+Pinecone Inc,Software Engineer,175000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+Chroma Inc,Software Engineer,165000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
+LangChain Inc,Software Engineer,170000,San Francisco,CA,H-1B1,Certified,AI/ML,2024
