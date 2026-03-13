@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+import { PDFParse } from "pdf-parse";
 import { inngest } from "@/lib/inngest/client";
 import { createJob } from "@/lib/job-store";
 import type { CandidateProfile, SearchParameters } from "@/lib/types";
+
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const parser = new PDFParse({ data: buffer });
+  const result = await parser.getText();
+  await parser.destroy();
+  return result.text;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,15 +37,13 @@ export async function POST(request: NextRequest) {
     const resumeFile = formData.get("resume") as File | null;
     if (resumeFile) {
       const buffer = Buffer.from(await resumeFile.arrayBuffer());
-      const parsed = await pdfParse(buffer);
-      resumeText = parsed.text;
+      resumeText = await extractPdfText(buffer);
     }
 
     const coverLetterFile = formData.get("coverLetter") as File | null;
     if (coverLetterFile) {
       const buffer = Buffer.from(await coverLetterFile.arrayBuffer());
-      const parsed = await pdfParse(buffer);
-      coverLetterText = parsed.text;
+      coverLetterText = await extractPdfText(buffer);
     }
 
     // Parse search parameters
