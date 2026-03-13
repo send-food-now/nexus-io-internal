@@ -9,6 +9,17 @@ export const runtime = 'nodejs';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(request) {
+  // Validate required environment variables
+  const missing = [];
+  if (!process.env.INNGEST_EVENT_KEY) missing.push('INNGEST_EVENT_KEY');
+  if (!process.env.ANTHROPIC_API_KEY) missing.push('ANTHROPIC_API_KEY');
+  if (missing.length > 0) {
+    return NextResponse.json(
+      { error: `Missing required environment variables: ${missing.join(', ')}. Add them in Vercel project settings.` },
+      { status: 500 }
+    );
+  }
+
   try {
     const formData = await request.formData();
 
@@ -74,6 +85,6 @@ export async function POST(request) {
     return NextResponse.json({ jobId });
   } catch (err) {
     console.error('[submit] Error:', err);
-    return NextResponse.json({ error: 'Failed to process submission' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to process submission' }, { status: 500 });
   }
 }
