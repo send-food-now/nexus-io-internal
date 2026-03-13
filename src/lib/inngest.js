@@ -41,8 +41,8 @@ export const pipelineFunction = inngest.createFunction(
     const categorizedStartups = await step.run('categorize', async () => {
       await updateJobStage(jobId, 'categorize', 'running');
       try {
-        const { categorizeStartups } = await import('./pipeline/categorize-startups');
-        const result = await categorizeStartups({ startups, candidateProfile });
+        const { categorizeStartups } = await import('./pipeline/categorize');
+        const result = await categorizeStartups({ startups, candidateProfile, searchParams });
         await updateJobStage(jobId, 'categorize', 'completed', result);
         return result;
       } catch (error) {
