@@ -1,0 +1,26 @@
+employer_name,city,state,visa_class,approval_count
+Anthropic,San Francisco,CA,H-1B1,12
+Vercel,San Francisco,CA,H-1B1,8
+Linear,San Francisco,CA,H-1B1,5
+Notion,San Francisco,CA,H-1B1,15
+Figma,San Francisco,CA,H-1B1,10
+Stripe,San Francisco,CA,H-1B1,45
+Coinbase,San Francisco,CA,H-1B1,20
+Databricks,San Francisco,CA,H-1B1,35
+Scale AI,San Francisco,CA,H-1B1,18
+Rippling,San Francisco,CA,H-1B1,22
+Ramp,New York,NY,H-1B1,14
+Brex,San Francisco,CA,H-1B1,11
+Retool,San Francisco,CA,H-1B1,7
+Supabase,San Francisco,CA,H-1B1,4
+Railway,San Francisco,CA,H-1B1,3
+Resend,San Francisco,CA,H-1B1,2
+Warp,Los Angeles,CA,H-1B1,6
+Arc,New York,NY,H-1B1,3
+Render,San Francisco,CA,H-1B1,5
+Neon,San Francisco,CA,H-1B1,4
+PostHog,San Francisco,CA,H-1B1,6
+Grafana Labs,New York,NY,H-1B1,25
+HashiCorp,San Francisco,CA,H-1B1,30
+Snowflake,San Mateo,CA,H-1B1,50
+Datadog,New York,NY,H-1B1,40
