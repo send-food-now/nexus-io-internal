@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Nexus Chat',
-  description: 'Nexus IO Chat — Real-time messaging',
+  title: 'Nexus.io',
+  description: 'Nexus.io — H-1B1 Visa Pipeline',
 }
 
 export default function RootLayout({

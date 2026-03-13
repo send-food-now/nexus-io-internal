@@ -262,7 +262,7 @@ Company details:
       hook: `I was excited to learn about ${profile.name}'s work in ${profile.description.slice(0, 50)}...`,
       fitRationale: `My background in ${candidate.technicalProfile?.skills.slice(0, 3).join(", ") || "software engineering"} aligns well with your team's needs.`,
       shortVariant: `Hi ${contact.name},\n\nI came across ${profile.name} and was impressed by what you're building. I'd love to learn more about opportunities on your team.\n\nBest regards,\n${candidate.name}`,
-      longVariant: `Hi ${contact.name},\n\nI came across ${profile.name} and was impressed by what you're building. My background in ${candidate.technicalProfile?.skills.slice(0, 3).join(", ") || "software engineering"} aligns well with your team.\n\nI'd love to learn more about opportunities and how I could contribute.\n\nWould you be open to a brief chat?\n\nBest regards,\n${candidate.name}`,
+      longVariant: `Hi ${contact.name},\n\nI came across ${profile.name} and was impressed by what you're building. My background in ${candidate.technicalProfile?.skills.slice(0, 3).join(", ") || "software engineering"} aligns well with your team.\n\nI'd love to learn more about opportunities and how I could contribute.\n\nWould you be open to a brief conversation?\n\nBest regards,\n${candidate.name}`,
     };
   }
 
