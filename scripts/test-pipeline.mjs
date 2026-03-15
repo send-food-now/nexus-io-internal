@@ -102,6 +102,9 @@ async function runStage(name, fn) {
   } catch (error) {
     console.error(`✗ ${name} FAILED in ${elapsed(start)}`);
     console.error(`  Error: ${error.message}`);
+    if (name.includes('Sheets')) {
+      console.error(`  Hint: Run 'node scripts/test-google-auth.mjs' to diagnose Google credentials.`);
+    }
     if (error.stack) console.error(error.stack);
     throw error;
   }
