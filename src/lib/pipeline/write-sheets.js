@@ -144,19 +144,29 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const date = new Date().toISOString().split('T')[0];
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
-  const createResponse = await sheets.spreadsheets.create({
+  // Create spreadsheet via Drive API (workaround: Sheets create endpoint returns 403)
+  const createResponse = await drive.files.create({
     requestBody: {
-      properties: { title },
-      sheets: [
-        { properties: { sheetId: 0, title: 'Exact Match' } },
-        { properties: { sheetId: 1, title: 'Recommended' } },
-        { properties: { sheetId: 2, title: 'Luck' } },
+      name: title,
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+    },
+    fields: 'id,webViewLink',
+  });
+
+  const spreadsheetId = createResponse.data.id;
+  const spreadsheetUrl = createResponse.data.webViewLink;
+
+  // Add the 3 tabs (rename default Sheet1 + add 2 more)
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        { updateSheetProperties: { properties: { sheetId: 0, title: 'Exact Match' }, fields: 'title' } },
+        { addSheet: { properties: { sheetId: 1, title: 'Recommended' } } },
+        { addSheet: { properties: { sheetId: 2, title: 'Luck' } } },
       ],
     },
   });
-
-  const spreadsheetId = createResponse.data.spreadsheetId;
-  const spreadsheetUrl = createResponse.data.spreadsheetUrl;
 
   await Promise.all([
     populateSheet(sheets, spreadsheetId, 0, 'Exact Match', categorizedStartups.exact || [], 'Exact Match'),
