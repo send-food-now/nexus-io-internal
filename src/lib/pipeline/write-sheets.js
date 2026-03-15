@@ -145,13 +145,31 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
   // Create spreadsheet via Drive API (workaround: Sheets create endpoint returns 403)
-  const createResponse = await drive.files.create({
-    requestBody: {
-      name: title,
-      mimeType: 'application/vnd.google-apps.spreadsheet',
-    },
-    fields: 'id,webViewLink',
-  });
+  let createResponse;
+  try {
+    createResponse = await drive.files.create({
+      requestBody: {
+        name: title,
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+      },
+      fields: 'id,webViewLink',
+    });
+  } catch (err) {
+    // If quota exceeded, empty trash and retry once
+    if (err.response?.data?.error?.errors?.[0]?.reason === 'storageQuotaExceeded') {
+      console.log('[write-sheets] Storage quota exceeded — emptying trash and retrying...');
+      await drive.files.emptyTrash();
+      createResponse = await drive.files.create({
+        requestBody: {
+          name: title,
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+        },
+        fields: 'id,webViewLink',
+      });
+    } else {
+      throw err;
+    }
+  }
 
   const spreadsheetId = createResponse.data.id;
   const spreadsheetUrl = createResponse.data.webViewLink;
