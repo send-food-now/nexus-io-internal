@@ -2,6 +2,10 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic();
 
+function cleanJson(text) {
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+}
+
 export async function profileCandidate({ resumeText, coverLetterText }) {
   const [technicalRes, narrativeRes] = await Promise.all([
     client.messages.create({
@@ -37,8 +41,8 @@ Schema:
     }),
   ]);
 
-  const technicalProfile = JSON.parse(technicalRes.content[0].text);
-  const narrativeProfile = JSON.parse(narrativeRes.content[0].text);
+  const technicalProfile = JSON.parse(cleanJson(technicalRes.content[0].text));
+  const narrativeProfile = JSON.parse(cleanJson(narrativeRes.content[0].text));
 
   return { technicalProfile, narrativeProfile };
 }

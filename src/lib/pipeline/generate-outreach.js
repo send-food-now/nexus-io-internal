@@ -2,6 +2,10 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic();
 
+function cleanJson(text) {
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+}
+
 async function generateOutreachForStartup(startup, candidateProfile) {
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -37,7 +41,7 @@ Respond ONLY with valid JSON, no markdown fences or extra text.`,
   });
 
   const text = message.content[0].text;
-  return JSON.parse(text);
+  return JSON.parse(cleanJson(text));
 }
 
 async function processBucket(startups, candidateProfile) {
