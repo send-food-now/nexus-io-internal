@@ -37,17 +37,9 @@ const COLUMN_HEADERS = [
 ];
 
 function getAuth() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
-  const projectId = email.includes('@')
-    ? email.split('@')[1]?.replace('.iam.gserviceaccount.com', '')
-    : undefined;
-
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: email,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-    projectId,
+  return new google.auth.JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
   });
 }
