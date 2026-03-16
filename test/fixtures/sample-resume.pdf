@@ -1,0 +1,57 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1837 >>
+stream
+BT /F1 10 Tf 50 800 Td (ALEX CHEN) Tj ET
+BT /F1 10 Tf 50 786 Td (Senior Full-Stack Engineer | Singapore) Tj ET
+BT /F1 10 Tf 50 772 Td (alex.chen@email.com | github.com/alexchen) Tj ET
+BT /F1 10 Tf 50 758 Td () Tj ET
+BT /F1 10 Tf 50 744 Td (EXPERIENCE) Tj ET
+BT /F1 10 Tf 50 730 Td (Senior Software Engineer — Grab \(2021–2024\)) Tj ET
+BT /F1 10 Tf 50 716 Td (- Led migration of payment microservices from Node.js monolith to Go + gRPC) Tj ET
+BT /F1 10 Tf 50 702 Td (- Built real-time fraud detection system processing 50K transactions/sec using Kafka + Flink) Tj ET
+BT /F1 10 Tf 50 688 Td (- Mentored team of 5 junior engineers, ran weekly architecture reviews) Tj ET
+BT /F1 10 Tf 50 674 Td (- Reduced API latency by 40% via Redis caching + query optimization) Tj ET
+BT /F1 10 Tf 50 660 Td () Tj ET
+BT /F1 10 Tf 50 646 Td (Software Engineer — Shopee \(2019–2021\)) Tj ET
+BT /F1 10 Tf 50 632 Td (- Developed React + TypeScript seller dashboard serving 2M+ merchants) Tj ET
+BT /F1 10 Tf 50 618 Td (- Built CI/CD pipelines with GitHub Actions, Docker, Kubernetes) Tj ET
+BT /F1 10 Tf 50 604 Td (- Implemented A/B testing framework used across 3 product teams) Tj ET
+BT /F1 10 Tf 50 590 Td () Tj ET
+BT /F1 10 Tf 50 576 Td (EDUCATION) Tj ET
+BT /F1 10 Tf 50 562 Td (B.S. Computer Science — National University of Singapore \(2019\)) Tj ET
+BT /F1 10 Tf 50 548 Td () Tj ET
+BT /F1 10 Tf 50 534 Td (SKILLS) Tj ET
+BT /F1 10 Tf 50 520 Td (Languages: TypeScript, Python, Go, SQL) Tj ET
+BT /F1 10 Tf 50 506 Td (Frontend: React, Next.js, Tailwind CSS) Tj ET
+BT /F1 10 Tf 50 492 Td (Backend: Node.js, Express, FastAPI, gRPC) Tj ET
+BT /F1 10 Tf 50 478 Td (Data: PostgreSQL, Redis, Kafka, Apache Flink) Tj ET
+BT /F1 10 Tf 50 464 Td (Infra: AWS, Docker, Kubernetes, Terraform) Tj ET
+BT /F1 10 Tf 50 450 Td (AI/ML: PyTorch, LangChain, vector databases) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002130 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2200
+%%EOF
