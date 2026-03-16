@@ -192,32 +192,36 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   // Free up quota by deleting old sheets + emptying trash (both auth types)
   await freeDriveQuota(drive, saDrive);
 
-  // Create spreadsheet (optionally in a specific folder for organization)
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  const createResponse = await drive.files.create({
+  // Create spreadsheet via Sheets API (bypasses Drive storage quota).
+  // Note: sheets.spreadsheets.create with SA-only auth returned 403 (commit 85a7d78),
+  // but the `sheets` client uses impersonating auth which has Sheets API access.
+  const createResponse = await sheets.spreadsheets.create({
     requestBody: {
-      name: title,
-      mimeType: 'application/vnd.google-apps.spreadsheet',
-      ...(folderId && { parents: [folderId] }),
-    },
-    fields: 'id,webViewLink',
-    supportsAllDrives: true,
-  });
-
-  const spreadsheetId = createResponse.data.id;
-  const spreadsheetUrl = createResponse.data.webViewLink;
-
-  // Add the 3 tabs (rename default Sheet1 + add 2 more)
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      requests: [
-        { updateSheetProperties: { properties: { sheetId: 0, title: 'Exact Match' }, fields: 'title' } },
-        { addSheet: { properties: { sheetId: 1, title: 'Recommended' } } },
-        { addSheet: { properties: { sheetId: 2, title: 'Luck' } } },
+      properties: { title },
+      sheets: [
+        { properties: { sheetId: 0, title: 'Exact Match' } },
+        { properties: { sheetId: 1, title: 'Recommended' } },
+        { properties: { sheetId: 2, title: 'Luck' } },
       ],
     },
   });
+
+  const spreadsheetId = createResponse.data.spreadsheetId;
+  const spreadsheetUrl = createResponse.data.spreadsheetUrl;
+
+  // Optionally move into organized folder (metadata update, no storage quota needed)
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (folderId) {
+    try {
+      await drive.files.update({
+        fileId: spreadsheetId,
+        addParents: folderId,
+        supportsAllDrives: true,
+      });
+    } catch (err) {
+      console.log(`[writeSheets] Could not move to folder: ${err.message}`);
+    }
+  }
 
   await Promise.all([
     populateSheet(sheets, spreadsheetId, 0, 'Exact Match', categorizedStartups.exact || [], 'Exact Match'),
