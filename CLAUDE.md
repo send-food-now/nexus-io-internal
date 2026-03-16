@@ -28,3 +28,14 @@ The repo (`nexus-io-internal`) is an admin pipeline that processes H-1B1 visa ca
 - Google Sheets via service account
 - Admin password protection via env var
 - pdf-parse for PDF text extraction (server-side only)
+
+## Rules
+Before implementing or modifying any external API integration (Google Sheets, 
+Apollo, Serper, Resend, etc.), check if a spec exists in `docs/`. If it doesn't, 
+STOP and write one first. The spec must include: auth method, credential storage, 
+data shape in/out, error handling table, and a setup checklist. Do not proceed 
+with implementation until the spec file exists.
+
+## Integration Specs
+Before working on any pipeline stage, check `docs/` for the relevant integration spec:
+- **write-sheets** → `docs/google-sheets-integration.md`
