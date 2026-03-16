@@ -28,3 +28,7 @@ The repo (`nexus-io-internal`) is an admin pipeline that processes H-1B1 visa ca
 - Google Sheets via service account
 - Admin password protection via env var
 - pdf-parse for PDF text extraction (server-side only)
+
+## Integration Specs
+Before working on any pipeline stage, check `docs/` for the relevant integration spec:
+- **write-sheets** → `docs/google-sheets-integration.md`
