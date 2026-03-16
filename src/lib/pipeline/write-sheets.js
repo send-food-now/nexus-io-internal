@@ -145,7 +145,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const date = new Date().toISOString().split('T')[0];
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
-  // Create spreadsheet in shared folder (service account has 0 MB own quota)
+  // Create spreadsheet (optionally in a specific folder for organization)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
   const createResponse = await drive.files.create({
     requestBody: {
@@ -154,6 +154,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
       ...(folderId && { parents: [folderId] }),
     },
     fields: 'id,webViewLink',
+    supportsAllDrives: true,
   });
 
   const spreadsheetId = createResponse.data.id;
@@ -185,6 +186,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
         role: 'writer',
         emailAddress: candidateData.email,
       },
+      supportsAllDrives: true,
     });
   }
 

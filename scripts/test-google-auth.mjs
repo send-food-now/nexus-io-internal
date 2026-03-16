@@ -26,19 +26,9 @@ if (!email || !privateKey) {
   process.exit(1);
 }
 
-if (!folderId) {
-  console.error('✗ GOOGLE_DRIVE_FOLDER_ID is not set');
-  console.error('\nSetup:');
-  console.error('  1. Create a folder in Google Drive');
-  console.error(`  2. Share it with ${email} as Editor`);
-  console.error('  3. Copy the folder ID from the URL (after /folders/)');
-  console.error('  4. Add GOOGLE_DRIVE_FOLDER_ID=<id> to .env.local');
-  process.exit(1);
-}
-
 console.log(`Service account: ${email}`);
 console.log(`Impersonating:   ${impersonateEmail || '(none — using service account directly)'}`);
-console.log(`Folder ID:       ${folderId}`);
+console.log(`Folder ID:       ${folderId || '(none — files created in root Drive)'}`);
 console.log(`Private key:     ${privateKey.substring(0, 30)}... (${privateKey.length} chars)\n`);
 
 const auth = new google.auth.JWT({
@@ -66,30 +56,35 @@ try {
 const drive = google.drive({ version: 'v3', auth });
 const sheets = google.sheets({ version: 'v4', auth });
 
-// Step 2: Verify folder access
-console.log('Step 2: Verifying folder access...');
-try {
-  const folder = await drive.files.get({ fileId: folderId, fields: 'id,name,mimeType' });
-  console.log(`✓ Folder accessible: "${folder.data.name}"\n`);
-} catch (err) {
-  console.error(`✗ Cannot access folder: ${err.message}`);
-  if (err.response?.status === 404) {
-    console.error(`\n  Folder not found. Check the ID and ensure it's shared with ${email} as Editor.`);
+// Step 2: Verify folder access (skip if no folder configured)
+if (folderId) {
+  console.log('Step 2: Verifying folder access...');
+  try {
+    const folder = await drive.files.get({ fileId: folderId, fields: 'id,name,mimeType', supportsAllDrives: true });
+    console.log(`✓ Folder accessible: "${folder.data.name}"\n`);
+  } catch (err) {
+    console.error(`✗ Cannot access folder: ${err.message}`);
+    if (err.response?.status === 404) {
+      console.error(`\n  Folder not found. Ensure ${impersonateEmail || email} has access to it.`);
+    }
+    process.exit(1);
   }
-  process.exit(1);
+} else {
+  console.log('Step 2: Skipped (no GOOGLE_DRIVE_FOLDER_ID — files will be created in root Drive)\n');
 }
 
-// Step 3: Create spreadsheet in the shared folder
-console.log('Step 3: Creating spreadsheet in shared folder...');
+// Step 3: Create spreadsheet
+console.log(`Step 3: Creating spreadsheet${folderId ? ' in shared folder' : ''}...`);
 let spreadsheetId;
 try {
   const res = await drive.files.create({
     requestBody: {
       name: 'Auth Test — DELETE ME',
       mimeType: 'application/vnd.google-apps.spreadsheet',
-      parents: [folderId],
+      ...(folderId && { parents: [folderId] }),
     },
     fields: 'id,webViewLink',
+    supportsAllDrives: true,
   });
   spreadsheetId = res.data.id;
   console.log(`✓ Spreadsheet created: ${res.data.webViewLink}\n`);
@@ -145,7 +140,7 @@ try {
 // Step 6: Clean up
 console.log('Step 6: Cleaning up test spreadsheet...');
 try {
-  await drive.files.delete({ fileId: spreadsheetId });
+  await drive.files.delete({ fileId: spreadsheetId, supportsAllDrives: true });
   console.log('✓ Test spreadsheet deleted\n');
 } catch (err) {
   console.error(`⚠ Could not delete test spreadsheet: ${err.message}\n`);
