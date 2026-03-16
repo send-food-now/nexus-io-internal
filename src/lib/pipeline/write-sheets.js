@@ -56,32 +56,74 @@ function getDriveAuth() {
 
 // Delete old pipeline spreadsheets to free Drive quota
 async function freeDriveQuota(drive, impersonatingDrive) {
-  // Clean up with both auth types — old files may be owned by either identity
-  for (const d of [drive, impersonatingDrive].filter(Boolean)) {
-    try {
-      const response = await d.files.list({
-        q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet'",
-        fields: 'files(id,name)',
-        pageSize: 100,
-        supportsAllDrives: true,
-      });
-      const files = response.data.files || [];
-      console.log(`[writeSheets] Found ${files.length} old pipeline files to clean up`);
-      for (const f of files) {
-        try {
-          await d.files.delete({ fileId: f.id, supportsAllDrives: true });
-          console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
-        } catch (err) {
-          console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
-        }
+  const clients = [drive, impersonatingDrive].filter(Boolean);
+  console.log(`[freeDriveQuota] Starting cleanup with ${clients.length} Drive client(s)`);
+
+  for (let i = 0; i < clients.length; i++) {
+    const d = clients[i];
+    const label = i === 0 ? 'service-account' : 'impersonating';
+    console.log(`[freeDriveQuota] Listing old pipeline files via ${label} client`);
+
+    const response = await d.files.list({
+      q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet'",
+      fields: 'files(id,name,createdTime)',
+      pageSize: 100,
+      supportsAllDrives: true,
+    });
+    const files = response.data.files || [];
+    console.log(`[freeDriveQuota] Found ${files.length} old pipeline files via ${label} client`);
+
+    let deleted = 0;
+    let failed = 0;
+    for (const f of files) {
+      try {
+        await d.files.delete({ fileId: f.id, supportsAllDrives: true });
+        deleted++;
+        console.log(`[freeDriveQuota] Deleted ${f.name} (${f.id}, created ${f.createdTime})`);
+      } catch (err) {
+        failed++;
+        console.error(`[freeDriveQuota] Failed to delete ${f.name} (${f.id}): ${err.message}`);
       }
-      await d.files.emptyTrash().catch((err) =>
-        console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
-      );
+    }
+    console.log(`[freeDriveQuota] ${label} client: ${deleted} deleted, ${failed} failed out of ${files.length} files`);
+
+    try {
+      await d.files.emptyTrash();
+      console.log(`[freeDriveQuota] ${label} client: trash emptied`);
     } catch (err) {
-      console.log(`[writeSheets] files.list failed: ${err.message}`);
+      console.error(`[freeDriveQuota] ${label} client: emptyTrash failed: ${err.message}`);
     }
   }
+
+  console.log(`[freeDriveQuota] Cleanup complete`);
+}
+
+// List ALL files owned by the service account and log total count + size
+async function auditDriveUsage(drive) {
+  let totalFiles = 0;
+  let totalSize = 0;
+  let pageToken;
+
+  console.log(`[auditDrive] Listing all files owned by service account...`);
+  do {
+    const response = await drive.files.list({
+      q: "'me' in owners",
+      fields: 'nextPageToken,files(id,name,size,mimeType)',
+      pageSize: 100,
+      pageToken,
+      supportsAllDrives: true,
+    });
+    const files = response.data.files || [];
+    for (const f of files) {
+      totalFiles++;
+      totalSize += parseInt(f.size || '0', 10);
+    }
+    pageToken = response.data.nextPageToken;
+  } while (pageToken);
+
+  const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+  console.log(`[auditDrive] Service account owns ${totalFiles} file(s) totalling ${sizeMB} MB`);
+  return { totalFiles, totalSize };
 }
 
 function startupToRow(startup, category) {
@@ -193,7 +235,20 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
   // Free up quota by deleting old sheets + emptying trash (both auth types)
-  await freeDriveQuota(drive, impersonatingDrive);
+  // If cleanup fails, stop execution — creating more files will only worsen quota issues
+  try {
+    await freeDriveQuota(drive, impersonatingDrive);
+  } catch (err) {
+    console.error(`[writeSheets] freeDriveQuota failed, aborting to avoid worsening quota: ${err.message}`);
+    throw new Error(`Drive cleanup failed, cannot create new spreadsheet: ${err.message}`);
+  }
+
+  // Audit total Drive usage before creating a new file
+  try {
+    await auditDriveUsage(drive);
+  } catch (err) {
+    console.error(`[writeSheets] Drive audit failed (non-fatal): ${err.message}`);
+  }
 
   // Create spreadsheet (optionally in a specific folder for organization)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
