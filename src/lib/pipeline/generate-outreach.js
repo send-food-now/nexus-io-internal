@@ -9,7 +9,7 @@ function cleanJson(text) {
 async function generateOutreachForStartup(startup, candidateProfile) {
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [
       {
         role: 'user',
@@ -40,8 +40,21 @@ Respond ONLY with valid JSON, no markdown fences or extra text.`,
     ],
   });
 
-  const text = message.content[0].text;
-  return JSON.parse(cleanJson(text));
+  const text = cleanJson(message.content[0].text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    // If truncated, try closing open strings and braces
+    let repaired = text;
+    // Close any unclosed string
+    const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) repaired += '"';
+    // Close open braces
+    const opens = (repaired.match(/{/g) || []).length;
+    const closes = (repaired.match(/}/g) || []).length;
+    for (let i = 0; i < opens - closes; i++) repaired += '}';
+    return JSON.parse(repaired);
+  }
 }
 
 async function processBucket(startups, candidateProfile) {
