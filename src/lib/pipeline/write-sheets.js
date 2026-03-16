@@ -54,6 +54,30 @@ function getDriveAuth() {
   });
 }
 
+// Transfer ownership of old pipeline spreadsheets to admin + empty trash to free quota
+async function freeDriveQuota(drive) {
+  const ownerEmail = process.env.ADMIN_EMAIL || process.env.GOOGLE_IMPERSONATE_EMAIL;
+  if (!ownerEmail) return;
+
+  const response = await drive.files.list({
+    q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and 'me' in owners",
+    fields: 'files(id)',
+    pageSize: 100,
+    supportsAllDrives: true,
+  });
+  const files = response.data.files || [];
+  await Promise.all(files.map(f =>
+    drive.permissions.create({
+      fileId: f.id,
+      requestBody: { type: 'user', role: 'owner', emailAddress: ownerEmail },
+      transferOwnership: true,
+      supportsAllDrives: true,
+    }).catch(() => {})
+  ));
+
+  await drive.files.emptyTrash().catch(() => {});
+}
+
 function startupToRow(startup, category) {
   const contact1 = startup.contacts?.[0] || {};
   const contact2 = startup.contacts?.[1] || {};
@@ -154,6 +178,9 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const candidateName = candidateData.name || 'Unknown';
   const date = new Date().toISOString().split('T')[0];
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
+
+  // Free up service account quota by transferring old sheets + emptying trash
+  await freeDriveQuota(drive);
 
   // Create spreadsheet (optionally in a specific folder for organization)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
