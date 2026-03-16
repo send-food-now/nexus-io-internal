@@ -54,27 +54,20 @@ function getDriveAuth() {
   });
 }
 
-// Transfer ownership of old pipeline spreadsheets to admin + empty trash to free quota
+// Delete old pipeline spreadsheets from service account's Drive to free quota
 async function freeDriveQuota(drive) {
-  const ownerEmail = process.env.ADMIN_EMAIL || process.env.GOOGLE_IMPERSONATE_EMAIL;
-  if (!ownerEmail) return;
-
   const response = await drive.files.list({
-    q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and 'me' in owners",
+    q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet'",
     fields: 'files(id)',
     pageSize: 100,
     supportsAllDrives: true,
   });
   const files = response.data.files || [];
-  await Promise.all(files.map(f =>
-    drive.permissions.create({
-      fileId: f.id,
-      requestBody: { type: 'user', role: 'owner', emailAddress: ownerEmail },
-      transferOwnership: true,
-      supportsAllDrives: true,
-    }).catch(() => {})
-  ));
+  for (const f of files) {
+    await drive.files.delete({ fileId: f.id, supportsAllDrives: true }).catch(() => {});
+  }
 
+  // Empty trash — trashed files still count against quota
   await drive.files.emptyTrash().catch(() => {});
 }
 
@@ -223,21 +216,6 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
         role: 'writer',
         emailAddress: candidateData.email,
       },
-      supportsAllDrives: true,
-    });
-  }
-
-  // Transfer ownership to admin so file doesn't count against service account quota
-  const ownerEmail = process.env.ADMIN_EMAIL || process.env.GOOGLE_IMPERSONATE_EMAIL;
-  if (ownerEmail) {
-    await drive.permissions.create({
-      fileId: spreadsheetId,
-      requestBody: {
-        type: 'user',
-        role: 'owner',
-        emailAddress: ownerEmail,
-      },
-      transferOwnership: true,
       supportsAllDrives: true,
     });
   }
