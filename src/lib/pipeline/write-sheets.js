@@ -45,7 +45,7 @@ function getAuth() {
   });
 }
 
-// Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
+// Non-impersonating SA auth — only used for cleanup of old SA-owned files
 function getDriveAuth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -179,11 +179,8 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const auth = getAuth();
   const driveAuth = getDriveAuth();
   const sheets = google.sheets({ version: 'v4', auth });
-  const drive = google.drive({ version: 'v3', auth: driveAuth });
-  // Impersonating Drive client — old files may have been created under this identity
-  const impersonatingDrive = process.env.GOOGLE_IMPERSONATE_EMAIL
-    ? google.drive({ version: 'v3', auth })
-    : null;
+  const drive = google.drive({ version: 'v3', auth });                   // impersonating — has Drive quota
+  const saDrive = google.drive({ version: 'v3', auth: driveAuth });      // SA direct — cleanup only
 
   console.log(`[writeSheets] GOOGLE_IMPERSONATE_EMAIL is ${process.env.GOOGLE_IMPERSONATE_EMAIL ? 'SET' : 'NOT SET'}`);
   console.log(`[writeSheets] GOOGLE_DRIVE_FOLDER_ID is ${process.env.GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'NOT SET'}`);
@@ -193,7 +190,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
   // Free up quota by deleting old sheets + emptying trash (both auth types)
-  await freeDriveQuota(drive, impersonatingDrive);
+  await freeDriveQuota(drive, saDrive);
 
   // Create spreadsheet (optionally in a specific folder for organization)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
