@@ -45,6 +45,15 @@ function getAuth() {
   });
 }
 
+// Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
+function getDriveAuth() {
+  return new google.auth.JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
+  });
+}
+
 function startupToRow(startup, category) {
   const contact1 = startup.contacts?.[0] || {};
   const contact2 = startup.contacts?.[1] || {};
@@ -138,8 +147,9 @@ async function populateSheet(sheets, spreadsheetId, sheetId, sheetTitle, startup
 
 export async function writeSheets({ categorizedStartups, candidateData }) {
   const auth = getAuth();
+  const driveAuth = getDriveAuth();
   const sheets = google.sheets({ version: 'v4', auth });
-  const drive = google.drive({ version: 'v3', auth });
+  const drive = google.drive({ version: 'v3', auth: driveAuth });
 
   const candidateName = candidateData.name || 'Unknown';
   const date = new Date().toISOString().split('T')[0];
