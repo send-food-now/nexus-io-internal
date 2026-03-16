@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 
-const COLUMN_HEADERS = [
+export const COLUMN_HEADERS = [
   'Company',
   'Domain',
   'Industry',
@@ -84,7 +84,7 @@ async function freeDriveQuota(drive, impersonatingDrive) {
   }
 }
 
-function startupToRow(startup, category) {
+export function startupToRow(startup, category) {
   const contact1 = startup.contacts?.[0] || {};
   const contact2 = startup.contacts?.[1] || {};
 
@@ -238,6 +238,26 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
       },
       supportsAllDrives: true,
     });
+  }
+
+  // Transfer ownership to admin — file no longer counts against SA quota
+  const ownerEmail = process.env.ADMIN_EMAIL || process.env.GOOGLE_IMPERSONATE_EMAIL;
+  if (ownerEmail) {
+    try {
+      await drive.permissions.create({
+        fileId: spreadsheetId,
+        requestBody: {
+          type: 'user',
+          role: 'owner',
+          emailAddress: ownerEmail,
+        },
+        transferOwnership: true,
+        supportsAllDrives: true,
+      });
+      console.log(`[writeSheets] Transferred ownership to ${ownerEmail}`);
+    } catch (err) {
+      console.log(`[writeSheets] Ownership transfer failed (${err.message}) — file still accessible via sharing`);
+    }
   }
 
   return { spreadsheetId, spreadsheetUrl };

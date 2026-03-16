@@ -79,7 +79,7 @@ export const pipelineFunction = inngest.createFunction(
       }
     });
 
-    // Stage 6: Sheets
+    // Stage 6: Sheets (non-blocking — pipeline continues even if this fails)
     const sheetsResult = await step.run('sheets', async () => {
       await updateJobStage(jobId, 'sheets', 'running');
       try {
@@ -89,7 +89,7 @@ export const pipelineFunction = inngest.createFunction(
         return result;
       } catch (error) {
         await updateJobStage(jobId, 'sheets', 'error', null, error.message);
-        throw error;
+        return { spreadsheetUrl: null, failed: true, error: error.message };
       }
     });
 
@@ -98,7 +98,7 @@ export const pipelineFunction = inngest.createFunction(
       await updateJobStage(jobId, 'notify', 'running');
       try {
         const { notifyAdmin } = await import('./pipeline/notify');
-        const result = await notifyAdmin({ jobId, candidateData, spreadsheetUrl: sheetsResult.spreadsheetUrl });
+        const result = await notifyAdmin({ jobId, candidateData, spreadsheetUrl: sheetsResult?.spreadsheetUrl || null });
         await updateJobStage(jobId, 'notify', 'completed', result);
         return result;
       } catch (error) {

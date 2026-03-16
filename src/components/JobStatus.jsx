@@ -47,6 +47,8 @@ export default function JobStatus({ jobId, onBack }) {
   }, [jobId]);
 
   const sheetsUrl = job?.stages?.sheets?.result?.spreadsheetUrl;
+  const sheetsFailed = job?.stages?.sheets?.status === 'error';
+  const outreachCompleted = job?.stages?.outreach?.status === 'completed';
   const isComplete = job?.status === 'completed';
   const isError = job?.status === 'error';
 
@@ -71,6 +73,12 @@ export default function JobStatus({ jobId, onBack }) {
           </a>
         )}
 
+        {sheetsFailed && outreachCompleted && (
+          <a href={`/api/export-csv?jobId=${jobId}`} download style={{ display: 'block', padding: '14px 20px', background: theme.accent, color: '#fff', borderRadius: 8, textAlign: 'center', fontWeight: 600, fontSize: 15, marginBottom: 24, textDecoration: 'none' }}>
+            Download CSV
+          </a>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {STAGE_ORDER.map((stage) => {
             const stageData = job?.stages?.[stage] || { status: 'pending' };
@@ -91,7 +99,11 @@ export default function JobStatus({ jobId, onBack }) {
           <p style={{ color: '#22c55e', textAlign: 'center', marginTop: 24, fontSize: 15 }}>Pipeline completed successfully!</p>
         )}
         {isError && (
-          <p style={{ color: '#ef4444', textAlign: 'center', marginTop: 24, fontSize: 15 }}>Pipeline encountered an error. Check stage details above.</p>
+          <p style={{ color: '#ef4444', textAlign: 'center', marginTop: 24, fontSize: 15 }}>
+            {sheetsFailed && outreachCompleted
+              ? 'Google Sheets export failed, but your data is available via CSV download above.'
+              : 'Pipeline encountered an error. Check stage details above.'}
+          </p>
         )}
       </div>
     </div>
