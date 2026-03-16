@@ -36,7 +36,7 @@ const COLUMN_HEADERS = [
   'Created At',
 ];
 
-function getAuth() {
+export function getAuth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
@@ -46,7 +46,7 @@ function getAuth() {
 }
 
 // Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
-function getDriveAuth() {
+export function getDriveAuth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),

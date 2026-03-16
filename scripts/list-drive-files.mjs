@@ -8,18 +8,10 @@ import { google } from 'googleapis';
 import { config } from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { getAuth, getDriveAuth } from '../src/lib/pipeline/write-sheets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, '..', '.env.local') });
-
-const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const privateKey = process.env.GOOGLE_PRIVATE_KEY;
-const impersonateEmail = process.env.GOOGLE_IMPERSONATE_EMAIL;
-
-if (!email || !privateKey) {
-  console.error('Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY in .env.local');
-  process.exit(1);
-}
 
 function formatSize(bytes) {
   if (!bytes || bytes === 0) return '0 B';
@@ -79,12 +71,10 @@ async function listAllFiles(drive, label) {
   console.log(`\nTotal: ${allFiles.length} file(s), ${formatSize(totalSize)}`);
 }
 
-// Service account (non-impersonating) — this is what getDriveAuth() uses
-const driveAuth = new google.auth.JWT({
-  email,
-  key: privateKey.replace(/\\n/g, '\n'),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
-});
+// Service account (non-impersonating)
+const driveAuth = getDriveAuth();
+const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const impersonateEmail = process.env.GOOGLE_IMPERSONATE_EMAIL;
 
 console.log('Drive File Audit (read-only)');
 console.log(`Service account: ${email}`);
@@ -93,14 +83,9 @@ console.log(`Impersonating:   ${impersonateEmail || '(none)'}`);
 const drive = google.drive({ version: 'v3', auth: driveAuth });
 await listAllFiles(drive, `Service account (${email})`);
 
-// Impersonating identity — this is what getAuth() uses
+// Impersonating identity
 if (impersonateEmail) {
-  const impersonatingAuth = new google.auth.JWT({
-    email,
-    key: privateKey.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
-    subject: impersonateEmail,
-  });
+  const impersonatingAuth = getAuth();
   const impersonatingDrive = google.drive({ version: 'v3', auth: impersonatingAuth });
   try {
     await listAllFiles(impersonatingDrive, `Impersonating (${impersonateEmail})`);
