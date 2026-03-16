@@ -190,5 +190,20 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
     });
   }
 
+  // Transfer ownership to admin so file doesn't count against service account quota
+  const ownerEmail = process.env.ADMIN_EMAIL || process.env.GOOGLE_IMPERSONATE_EMAIL;
+  if (ownerEmail) {
+    await drive.permissions.create({
+      fileId: spreadsheetId,
+      requestBody: {
+        type: 'user',
+        role: 'owner',
+        emailAddress: ownerEmail,
+      },
+      transferOwnership: true,
+      supportsAllDrives: true,
+    });
+  }
+
   return { spreadsheetId, spreadsheetUrl };
 }
