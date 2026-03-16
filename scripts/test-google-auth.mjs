@@ -14,6 +14,7 @@ config({ path: join(__dirname, '..', '.env.local') });
 const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const privateKey = process.env.GOOGLE_PRIVATE_KEY;
 const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const impersonateEmail = process.env.GOOGLE_IMPERSONATE_EMAIL;
 
 console.log('=== Google Auth Diagnostic ===\n');
 
@@ -36,6 +37,7 @@ if (!folderId) {
 }
 
 console.log(`Service account: ${email}`);
+console.log(`Impersonating:   ${impersonateEmail || '(none — using service account directly)'}`);
 console.log(`Folder ID:       ${folderId}`);
 console.log(`Private key:     ${privateKey.substring(0, 30)}... (${privateKey.length} chars)\n`);
 
@@ -43,6 +45,7 @@ const auth = new google.auth.JWT({
   email,
   key: privateKey.replace(/\\n/g, '\n'),
   scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
+  subject: impersonateEmail,
 });
 
 // Step 1: Get access token
