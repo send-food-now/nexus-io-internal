@@ -53,3 +53,4 @@ Environment problem = code is correct but something external is wrong (expired c
 These modules are verified working. If errors appear related to them, the problem is upstream or environmental.
 
 - `src/lib/pipeline/write-sheets.js` — Google Sheets export (JWT with domain-wide delegation)
+- `src/lib/pipeline/notify.js` — Email notification via Resend (verified domain)
