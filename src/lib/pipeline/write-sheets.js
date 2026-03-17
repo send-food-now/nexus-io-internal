@@ -54,81 +54,34 @@ function getDriveAuth() {
   });
 }
 
-// Log Drive quota usage for diagnostics
-async function logDriveQuota(drive, label) {
-  try {
-    const res = await drive.about.get({ fields: 'storageQuota' });
-    const q = res.data.storageQuota || {};
-    const used = Number(q.usage || 0);
-    const trash = Number(q.usageInDriveTrash || 0);
-    const limit = Number(q.limit || 0);
-    console.log(`[writeSheets] Quota (${label}): ${(used / 1024 / 1024).toFixed(1)}MB used, ${(trash / 1024 / 1024).toFixed(1)}MB in trash, ${limit ? (limit / 1024 / 1024).toFixed(0) + 'MB limit' : 'unlimited'}`);
-    return { used, trash, limit };
-  } catch (err) {
-    console.log(`[writeSheets] Quota check (${label}) failed: ${err.message}`);
-    return null;
-  }
-}
-
 // Delete old pipeline spreadsheets to free Drive quota
 async function freeDriveQuota(drive, impersonatingDrive) {
-  let totalFound = 0;
-  let totalDeleted = 0;
-
   // Clean up with both auth types — old files may be owned by either identity
-  for (const [label, d] of [['service-account', drive], ['impersonating', impersonatingDrive]]) {
-    if (!d) continue;
-
-    // Empty trash FIRST — trashed files still count against quota
-    await d.files.emptyTrash().catch((err) =>
-      console.warn(`[writeSheets] emptyTrash pre-cleanup (${label}) failed: ${err.message}`)
-    );
-
-    // List ALL files (no mimeType filter) — per spec Section 7
-    let pageToken = undefined;
-    const allFiles = [];
+  for (const d of [drive, impersonatingDrive].filter(Boolean)) {
     try {
-      do {
-        const response = await d.files.list({
-          q: 'trashed = false',
-          fields: 'files(id,name,mimeType,size,createdTime),nextPageToken',
-          pageSize: 100,
-          supportsAllDrives: true,
-          ...(pageToken && { pageToken }),
-        });
-        allFiles.push(...(response.data.files || []));
-        pageToken = response.data.nextPageToken;
-      } while (pageToken);
-    } catch (err) {
-      // files.list failure is fatal — if we can't list, we shouldn't create more files
-      throw new Error(`[writeSheets] files.list failed for ${label}: ${err.message}`);
-    }
-
-    const totalSize = allFiles.reduce((sum, f) => sum + Number(f.size || 0), 0);
-    console.log(`[writeSheets] Found ${allFiles.length} file(s) via ${label} auth (${(totalSize / 1024 / 1024).toFixed(1)}MB total)`);
-    for (const f of allFiles) {
-      console.log(`[writeSheets]   - ${f.name} (${f.id}, ${f.mimeType}, ${f.size || '?'} bytes, ${f.createdTime})`);
-    }
-    totalFound += allFiles.length;
-
-    for (const f of allFiles) {
-      try {
-        await d.files.delete({ fileId: f.id, supportsAllDrives: true });
-        console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
-        totalDeleted++;
-      } catch (err) {
-        console.warn(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
+      const response = await d.files.list({
+        q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet'",
+        fields: 'files(id,name)',
+        pageSize: 100,
+        supportsAllDrives: true,
+      });
+      const files = response.data.files || [];
+      console.log(`[writeSheets] Found ${files.length} old pipeline files to clean up`);
+      for (const f of files) {
+        try {
+          await d.files.delete({ fileId: f.id, supportsAllDrives: true });
+          console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
+        } catch (err) {
+          console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
+        }
       }
+      await d.files.emptyTrash().catch((err) =>
+        console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
+      );
+    } catch (err) {
+      console.log(`[writeSheets] files.list failed: ${err.message}`);
     }
-
-    // Empty trash again after deleting files
-    await d.files.emptyTrash().catch((err) =>
-      console.warn(`[writeSheets] emptyTrash post-cleanup (${label}) failed: ${err.message}`)
-    );
   }
-
-  console.log(`[writeSheets] Cleanup complete: ${totalDeleted}/${totalFound} files deleted`);
-  return { totalFound, totalDeleted };
 }
 
 function startupToRow(startup, category) {
@@ -239,26 +192,12 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const date = new Date().toISOString().split('T')[0];
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
-  // Log quota before cleanup
-  await logDriveQuota(drive, 'before-cleanup');
-  if (impersonatingDrive) await logDriveQuota(impersonatingDrive, 'before-cleanup-impersonating');
-
   // Free up quota by deleting old sheets + emptying trash (both auth types)
   await freeDriveQuota(drive, impersonatingDrive);
 
-  // Wait for Google to propagate quota release
-  await new Promise(r => setTimeout(r, 5000));
-  await logDriveQuota(drive, 'after-cleanup');
-
-  // Prefer impersonating auth for creation — the service account's 15GB quota
-  // is likely full from accumulated debris. Workspace users have much larger quotas.
-  const creationDrive = impersonatingDrive || drive;
-  const createdAsImpersonating = !!impersonatingDrive;
-  console.log(`[writeSheets] Will create spreadsheet using ${createdAsImpersonating ? 'impersonating' : 'service-account'} auth`);
-
-  // Create spreadsheet with retry on quota errors
+  // Create spreadsheet (optionally in a specific folder for organization)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  const createRequest = {
+  const createResponse = await drive.files.create({
     requestBody: {
       name: title,
       mimeType: 'application/vnd.google-apps.spreadsheet',
@@ -266,28 +205,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
     },
     fields: 'id,webViewLink',
     supportsAllDrives: true,
-  };
-
-  let createResponse;
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      console.log(`[writeSheets] Creating spreadsheet "${title}" (attempt ${attempt}/${maxAttempts})`);
-      createResponse = await creationDrive.files.create(createRequest);
-      break;
-    } catch (err) {
-      const isQuotaError = err.message?.toLowerCase().includes('quota') || err.code === 403 || err.code === 429;
-      if (isQuotaError && attempt < maxAttempts) {
-        const delay = attempt * 10000;
-        console.warn(`[writeSheets] Quota error on attempt ${attempt}/${maxAttempts}, retrying in ${delay}ms: ${err.message}`);
-        await creationDrive.files.emptyTrash().catch(() => {});
-        await new Promise(r => setTimeout(r, delay));
-        await logDriveQuota(creationDrive, `retry-${attempt}`);
-        continue;
-      }
-      throw err;
-    }
-  }
+  });
 
   const spreadsheetId = createResponse.data.id;
   const spreadsheetUrl = createResponse.data.webViewLink;
@@ -311,8 +229,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   ]);
 
   if (candidateData.email) {
-    console.log(`[writeSheets] Sharing spreadsheet with ${candidateData.email} (writer)`);
-    await creationDrive.permissions.create({
+    await drive.permissions.create({
       fileId: spreadsheetId,
       requestBody: {
         type: 'user',
@@ -321,32 +238,6 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
       },
       supportsAllDrives: true,
     });
-  }
-
-  // Transfer ownership only if created as service account — if created as
-  // impersonating user, the file is already owned by the right person
-  if (!createdAsImpersonating) {
-    const ownerEmail = process.env.GOOGLE_IMPERSONATE_EMAIL || process.env.ADMIN_EMAIL;
-    if (ownerEmail) {
-      try {
-        console.log(`[writeSheets] Transferring ownership to ${ownerEmail}`);
-        await drive.permissions.create({
-          fileId: spreadsheetId,
-          requestBody: {
-            type: 'user',
-            role: 'owner',
-            emailAddress: ownerEmail,
-          },
-          transferOwnership: true,
-          supportsAllDrives: true,
-        });
-        console.log(`[writeSheets] Transferred ownership to ${ownerEmail}`);
-      } catch (err) {
-        console.warn(`[writeSheets] Ownership transfer failed (non-fatal): ${err.message}`);
-      }
-    }
-  } else {
-    console.log(`[writeSheets] Skipping ownership transfer — file created as impersonating user`);
   }
 
   return { spreadsheetId, spreadsheetUrl };
