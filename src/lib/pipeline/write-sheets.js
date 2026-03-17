@@ -86,7 +86,7 @@ async function freeDriveQuota(drive, impersonatingDrive) {
       do {
         const response = await d.files.list({
           q: "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
-          fields: 'files(id,name,createdTime),nextPageToken',
+          fields: 'files(id,name,size,createdTime),nextPageToken',
           pageSize: 100,
           supportsAllDrives: true,
           ...(pageToken && { pageToken }),
@@ -99,7 +99,11 @@ async function freeDriveQuota(drive, impersonatingDrive) {
       throw new Error(`[writeSheets] files.list failed for ${label}: ${err.message}`);
     }
 
-    console.log(`[writeSheets] Found ${allFiles.length} spreadsheet(s) via ${label} auth`);
+    const totalSize = allFiles.reduce((sum, f) => sum + Number(f.size || 0), 0);
+    console.log(`[writeSheets] Found ${allFiles.length} spreadsheet(s) via ${label} auth (${(totalSize / 1024 / 1024).toFixed(1)}MB total)`);
+    for (const f of allFiles) {
+      console.log(`[writeSheets]   - ${f.name} (${f.id}, ${f.size || '?'} bytes, ${f.createdTime})`);
+    }
     totalFound += allFiles.length;
 
     for (const f of allFiles) {
@@ -256,6 +260,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      console.log(`[writeSheets] Creating spreadsheet "${title}" (attempt ${attempt}/${maxAttempts})`);
       createResponse = await drive.files.create(createRequest);
       break;
     } catch (err) {
@@ -295,6 +300,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   ]);
 
   if (candidateData.email) {
+    console.log(`[writeSheets] Sharing spreadsheet with ${candidateData.email} (writer)`);
     await drive.permissions.create({
       fileId: spreadsheetId,
       requestBody: {
@@ -310,6 +316,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const ownerEmail = process.env.GOOGLE_IMPERSONATE_EMAIL || process.env.ADMIN_EMAIL;
   if (ownerEmail) {
     try {
+      console.log(`[writeSheets] Transferring ownership to ${ownerEmail}`);
       await drive.permissions.create({
         fileId: spreadsheetId,
         requestBody: {

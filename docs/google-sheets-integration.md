@@ -174,9 +174,9 @@ Row 1 of each tab: blue background (`#4472C4`), white bold text. Applied via `sh
 ```javascript
 {
   categorizedStartups: {
-    "Exact Match": [ startupObj, startupObj, ... ],
-    "Recommended": [ startupObj, startupObj, ... ],
-    "Luck": [ startupObj, startupObj, ... ],
+    exact: [ startupObj, startupObj, ... ],
+    recommended: [ startupObj, startupObj, ... ],
+    luck: [ startupObj, startupObj, ... ],
   },
   candidateData: {
     name: "Lim Zi Jian",
@@ -184,6 +184,8 @@ Row 1 of each tab: blue background (`#4472C4`), white bold text. Applied via `sh
   }
 }
 ```
+
+> **Note:** Keys are lowercase (`exact`, `recommended`, `luck`) — this matches the output of `categorizeStartups()` in `categorize.js` and is consistent across all downstream stages (enrich, outreach, write-sheets).
 
 ### Row conversion
 
@@ -300,13 +302,18 @@ writeSheets({ categorizedStartups, candidateData })
 ├─ getAuth()          → JWT auth for Sheets API
 ├─ getDriveAuth()     → Service account auth for Drive API
 │
+├─ logDriveQuota()    → Log quota before cleanup
 ├─ freeDriveQuota()   → ⚠️ MUST succeed before continuing
-│   ├─ List all service account files
-│   ├─ Log count and total size
-│   ├─ Delete files beyond retention limit
-│   └─ If fails → log error, HALT
+│   ├─ List all service account spreadsheets (paginated, no name filter)
+│   ├─ Log count, total size, file names
+│   ├─ Delete all old spreadsheets
+│   ├─ Empty trash
+│   └─ If files.list fails → HALT (fatal)
 │
-├─ drive.files.create()  → New spreadsheet: "H-1B1 Pipeline — {name} — {date}"
+├─ 2s delay           → Wait for Google quota propagation
+├─ logDriveQuota()    → Log quota after cleanup
+│
+├─ drive.files.create()  → New spreadsheet (3 retries on quota error)
 │
 ├─ For each tab ["Exact Match", "Recommended", "Luck"]:
 │   ├─ sheets.spreadsheets.batchUpdate() → Add tab
@@ -315,6 +322,7 @@ writeSheets({ categorizedStartups, candidateData })
 │   └─ sheets.spreadsheets.batchUpdate() → Auto-resize columns
 │
 ├─ drive.permissions.create() → Share with candidate (if email provided)
+├─ drive.permissions.create() → Transfer ownership to admin (prevents quota accumulation)
 │
 └─ Return { spreadsheetId, spreadsheetUrl }
 ```
