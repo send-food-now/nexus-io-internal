@@ -39,3 +39,5 @@ with implementation until the spec file exists.
 ## Integration Specs
 Before working on any pipeline stage, check `docs/` for the relevant integration spec:
 - **write-sheets** → `docs/google-sheets-integration.md`
+# DO NOT MODIFY — verified working integration
+src/lib/pipeline/write-sheets.js
