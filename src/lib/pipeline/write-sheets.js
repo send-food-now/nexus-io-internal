@@ -54,29 +54,45 @@ function getDriveAuth() {
   });
 }
 
-// Delete old pipeline spreadsheets to free Drive quota
+// Delete old spreadsheets to free Drive quota
 async function freeDriveQuota(drive, impersonatingDrive) {
   // Clean up with both auth types — old files may be owned by either identity
   for (const d of [drive, impersonatingDrive].filter(Boolean)) {
     try {
-      const response = await d.files.list({
-        q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet'",
-        fields: 'files(id,name)',
-        pageSize: 100,
-        supportsAllDrives: true,
-      });
-      const files = response.data.files || [];
-      console.log(`[writeSheets] Found ${files.length} old pipeline files to clean up`);
-      for (const f of files) {
-        try {
-          await d.files.delete({ fileId: f.id, supportsAllDrives: true });
-          console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
-        } catch (err) {
-          console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
-        }
-      }
+      // Empty trash FIRST — trashed files still count against quota
       await d.files.emptyTrash().catch((err) =>
         console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
+      );
+
+      // Paginate through ALL spreadsheets (not just 'H-1B1 Pipeline' named ones)
+      let pageToken = undefined;
+      let totalDeleted = 0;
+      do {
+        const response = await d.files.list({
+          q: "mimeType = 'application/vnd.google-apps.spreadsheet'",
+          fields: 'files(id,name),nextPageToken',
+          pageSize: 100,
+          pageToken,
+          supportsAllDrives: true,
+        });
+        const files = response.data.files || [];
+        pageToken = response.data.nextPageToken;
+        for (const f of files) {
+          try {
+            await d.files.delete({ fileId: f.id, supportsAllDrives: true });
+            totalDeleted++;
+            console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
+          } catch (err) {
+            console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
+          }
+        }
+      } while (pageToken);
+
+      console.log(`[writeSheets] Cleanup complete: deleted ${totalDeleted} spreadsheets`);
+
+      // Empty trash again after deleting files
+      await d.files.emptyTrash().catch((err) =>
+        console.log(`[writeSheets] emptyTrash (post-delete) failed: ${err.message}`)
       );
     } catch (err) {
       console.log(`[writeSheets] files.list failed: ${err.message}`);
@@ -195,17 +211,35 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   // Free up quota by deleting old sheets + emptying trash (both auth types)
   await freeDriveQuota(drive, impersonatingDrive);
 
-  // Create spreadsheet (optionally in a specific folder for organization)
+  // Wait for Google to propagate quota changes
+  await new Promise(r => setTimeout(r, 5000));
+
+  // Create spreadsheet with retry (quota propagation can be slow)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  const createResponse = await drive.files.create({
-    requestBody: {
-      name: title,
-      mimeType: 'application/vnd.google-apps.spreadsheet',
-      ...(folderId && { parents: [folderId] }),
-    },
-    fields: 'id,webViewLink',
-    supportsAllDrives: true,
-  });
+  let createResponse;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      createResponse = await drive.files.create({
+        requestBody: {
+          name: title,
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          ...(folderId && { parents: [folderId] }),
+        },
+        fields: 'id,webViewLink',
+        supportsAllDrives: true,
+      });
+      break;
+    } catch (err) {
+      console.log(`[writeSheets] files.create attempt ${attempt + 1} failed: ${err.message}`);
+      if (attempt < 2) {
+        const delay = (attempt + 1) * 10000; // 10s, 20s
+        console.log(`[writeSheets] Retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
 
   const spreadsheetId = createResponse.data.id;
   const spreadsheetUrl = createResponse.data.webViewLink;
