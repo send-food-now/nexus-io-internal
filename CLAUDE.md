@@ -39,5 +39,17 @@ with implementation until the spec file exists.
 ## Integration Specs
 Before working on any pipeline stage, check `docs/` for the relevant integration spec:
 - **write-sheets** → `docs/google-sheets-integration.md`
-# DO NOT MODIFY — verified working integration
-src/lib/pipeline/write-sheets.js
+
+## Debugging Rules
+
+**Before attempting any fix, determine: is this a CODE problem or an ENVIRONMENT problem?**
+
+Code problem = logic is wrong in the files. Fix it.
+Environment problem = code is correct but something external is wrong (expired credentials, missing env vars, quota limits, wrong permissions, stale deployment). **Do not modify code. Describe the problem and tell the developer which external system to check.**
+
+**One-attempt rule:** For any external API error, make at most one code-level fix. If it does not resolve the issue, stop and report. Do not iterate.
+
+## Do Not Modify List
+These modules are verified working. If errors appear related to them, the problem is upstream or environmental.
+
+- `src/lib/pipeline/write-sheets.js` — Google Sheets export (JWT with domain-wide delegation)
