@@ -241,6 +241,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
 
   // Log quota before cleanup
   await logDriveQuota(drive, 'before-cleanup');
+  if (impersonatingDrive) await logDriveQuota(impersonatingDrive, 'before-cleanup-impersonating');
 
   // Free up quota by deleting old sheets + emptying trash (both auth types)
   await freeDriveQuota(drive, impersonatingDrive);
@@ -248,6 +249,12 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   // Wait for Google to propagate quota release
   await new Promise(r => setTimeout(r, 5000));
   await logDriveQuota(drive, 'after-cleanup');
+
+  // Prefer impersonating auth for creation — the service account's 15GB quota
+  // is likely full from accumulated debris. Workspace users have much larger quotas.
+  const creationDrive = impersonatingDrive || drive;
+  const createdAsImpersonating = !!impersonatingDrive;
+  console.log(`[writeSheets] Will create spreadsheet using ${createdAsImpersonating ? 'impersonating' : 'service-account'} auth`);
 
   // Create spreadsheet with retry on quota errors
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
@@ -266,17 +273,16 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       console.log(`[writeSheets] Creating spreadsheet "${title}" (attempt ${attempt}/${maxAttempts})`);
-      createResponse = await drive.files.create(createRequest);
+      createResponse = await creationDrive.files.create(createRequest);
       break;
     } catch (err) {
       const isQuotaError = err.message?.toLowerCase().includes('quota') || err.code === 403 || err.code === 429;
       if (isQuotaError && attempt < maxAttempts) {
         const delay = attempt * 10000;
         console.warn(`[writeSheets] Quota error on attempt ${attempt}/${maxAttempts}, retrying in ${delay}ms: ${err.message}`);
-        // Re-empty trash before retry
-        await drive.files.emptyTrash().catch(() => {});
+        await creationDrive.files.emptyTrash().catch(() => {});
         await new Promise(r => setTimeout(r, delay));
-        await logDriveQuota(drive, `retry-${attempt}`);
+        await logDriveQuota(creationDrive, `retry-${attempt}`);
         continue;
       }
       throw err;
@@ -306,7 +312,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
 
   if (candidateData.email) {
     console.log(`[writeSheets] Sharing spreadsheet with ${candidateData.email} (writer)`);
-    await drive.permissions.create({
+    await creationDrive.permissions.create({
       fileId: spreadsheetId,
       requestBody: {
         type: 'user',
@@ -317,25 +323,30 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
     });
   }
 
-  // Transfer ownership so the file no longer counts against the service account's quota
-  const ownerEmail = process.env.GOOGLE_IMPERSONATE_EMAIL || process.env.ADMIN_EMAIL;
-  if (ownerEmail) {
-    try {
-      console.log(`[writeSheets] Transferring ownership to ${ownerEmail}`);
-      await drive.permissions.create({
-        fileId: spreadsheetId,
-        requestBody: {
-          type: 'user',
-          role: 'owner',
-          emailAddress: ownerEmail,
-        },
-        transferOwnership: true,
-        supportsAllDrives: true,
-      });
-      console.log(`[writeSheets] Transferred ownership to ${ownerEmail}`);
-    } catch (err) {
-      console.warn(`[writeSheets] Ownership transfer failed (non-fatal): ${err.message}`);
+  // Transfer ownership only if created as service account — if created as
+  // impersonating user, the file is already owned by the right person
+  if (!createdAsImpersonating) {
+    const ownerEmail = process.env.GOOGLE_IMPERSONATE_EMAIL || process.env.ADMIN_EMAIL;
+    if (ownerEmail) {
+      try {
+        console.log(`[writeSheets] Transferring ownership to ${ownerEmail}`);
+        await drive.permissions.create({
+          fileId: spreadsheetId,
+          requestBody: {
+            type: 'user',
+            role: 'owner',
+            emailAddress: ownerEmail,
+          },
+          transferOwnership: true,
+          supportsAllDrives: true,
+        });
+        console.log(`[writeSheets] Transferred ownership to ${ownerEmail}`);
+      } catch (err) {
+        console.warn(`[writeSheets] Ownership transfer failed (non-fatal): ${err.message}`);
+      }
     }
+  } else {
+    console.log(`[writeSheets] Skipping ownership transfer — file created as impersonating user`);
   }
 
   return { spreadsheetId, spreadsheetUrl };
