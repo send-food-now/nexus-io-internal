@@ -8,7 +8,7 @@ export async function notifyAdmin({ jobId, candidateData, spreadsheetUrl }) {
   const timestamp = new Date().toISOString();
 
   const { data } = await resend.emails.send({
-    from: 'Nexus Pipeline <onboarding@resend.dev>',
+    from: 'Nexus Pipeline <no-reply@shearesnexus.com>',
     to: process.env.ADMIN_EMAIL,
     subject: `Pipeline Complete: ${candidateName}`,
     html: `
