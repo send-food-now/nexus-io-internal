@@ -119,7 +119,7 @@ Optionally placed in a configured Drive folder.
 | Recommended | Startups categorized as recommended |
 | Luck | Startups categorized as luck/long-shot |
 
-### Column mapping (34 columns, A–AH)
+### Column mapping (33 columns, A–AG)
 
 | Column | Field | Type | Notes |
 |--------|-------|------|-------|
@@ -198,7 +198,7 @@ Each tab is populated via `sheets.spreadsheets.values.update` (not append):
 ```javascript
 await sheets.spreadsheets.values.update({
   spreadsheetId,
-  range: `${tabName}!A1:AH${rows.length + 1}`, // +1 for header row
+  range: `${tabName}!A1:AG${rows.length + 1}`, // +1 for header row
   valueInputOption: 'USER_ENTERED',
   requestBody: {
     values: [COLUMN_HEADERS, ...rows],

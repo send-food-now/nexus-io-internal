@@ -36,10 +36,26 @@ const COLUMN_HEADERS = [
   'Created At',
 ];
 
+function getCredentials() {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    const parsed = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+    return {
+      client_email: parsed.client_email,
+      private_key: parsed.private_key,
+    };
+  }
+  // Fallback to separate env vars for backward compatibility
+  return {
+    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  };
+}
+
 function getAuth() {
+  const creds = getCredentials();
   return new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    email: creds.client_email,
+    key: creds.private_key,
     scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
     subject: process.env.GOOGLE_IMPERSONATE_EMAIL,
   });
@@ -47,9 +63,10 @@ function getAuth() {
 
 // Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
 function getDriveAuth() {
+  const creds = getCredentials();
   return new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    email: creds.client_email,
+    key: creds.private_key,
     scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
   });
 }
@@ -173,7 +190,7 @@ async function populateSheet(sheets, spreadsheetId, sheetId, sheetTitle, startup
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `'${sheetTitle}'!A1`,
-    valueInputOption: 'RAW',
+    valueInputOption: 'USER_ENTERED',
     requestBody: { values: rows },
   });
 
@@ -192,7 +209,7 @@ async function populateSheet(sheets, spreadsheetId, sheetId, sheetTitle, startup
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.231, green: 0.51, blue: 0.965 },
+                backgroundColor: { red: 0.267, green: 0.447, blue: 0.769 },
                 textFormat: {
                   bold: true,
                   foregroundColor: { red: 1, green: 1, blue: 1 },
