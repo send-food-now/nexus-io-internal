@@ -79,14 +79,19 @@ async function freeDriveQuota(drive, impersonatingDrive) {
   for (const [label, d] of [['service-account', drive], ['impersonating', impersonatingDrive]]) {
     if (!d) continue;
 
-    // List ALL spreadsheets (not just name-matched) — per spec Section 7
+    // Empty trash FIRST — trashed files still count against quota
+    await d.files.emptyTrash().catch((err) =>
+      console.warn(`[writeSheets] emptyTrash pre-cleanup (${label}) failed: ${err.message}`)
+    );
+
+    // List ALL files (no mimeType filter) — per spec Section 7
     let pageToken = undefined;
     const allFiles = [];
     try {
       do {
         const response = await d.files.list({
-          q: "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
-          fields: 'files(id,name,size,createdTime),nextPageToken',
+          q: 'trashed = false',
+          fields: 'files(id,name,mimeType,size,createdTime),nextPageToken',
           pageSize: 100,
           supportsAllDrives: true,
           ...(pageToken && { pageToken }),
@@ -100,9 +105,9 @@ async function freeDriveQuota(drive, impersonatingDrive) {
     }
 
     const totalSize = allFiles.reduce((sum, f) => sum + Number(f.size || 0), 0);
-    console.log(`[writeSheets] Found ${allFiles.length} spreadsheet(s) via ${label} auth (${(totalSize / 1024 / 1024).toFixed(1)}MB total)`);
+    console.log(`[writeSheets] Found ${allFiles.length} file(s) via ${label} auth (${(totalSize / 1024 / 1024).toFixed(1)}MB total)`);
     for (const f of allFiles) {
-      console.log(`[writeSheets]   - ${f.name} (${f.id}, ${f.size || '?'} bytes, ${f.createdTime})`);
+      console.log(`[writeSheets]   - ${f.name} (${f.id}, ${f.mimeType}, ${f.size || '?'} bytes, ${f.createdTime})`);
     }
     totalFound += allFiles.length;
 
@@ -116,9 +121,9 @@ async function freeDriveQuota(drive, impersonatingDrive) {
       }
     }
 
-    // Empty trash so deleted files stop counting against quota
+    // Empty trash again after deleting files
     await d.files.emptyTrash().catch((err) =>
-      console.warn(`[writeSheets] emptyTrash (${label}) failed: ${err.message}`)
+      console.warn(`[writeSheets] emptyTrash post-cleanup (${label}) failed: ${err.message}`)
     );
   }
 
@@ -241,7 +246,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   await freeDriveQuota(drive, impersonatingDrive);
 
   // Wait for Google to propagate quota release
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise(r => setTimeout(r, 5000));
   await logDriveQuota(drive, 'after-cleanup');
 
   // Create spreadsheet with retry on quota errors
@@ -266,7 +271,7 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
     } catch (err) {
       const isQuotaError = err.message?.toLowerCase().includes('quota') || err.code === 403 || err.code === 429;
       if (isQuotaError && attempt < maxAttempts) {
-        const delay = attempt * 5000;
+        const delay = attempt * 10000;
         console.warn(`[writeSheets] Quota error on attempt ${attempt}/${maxAttempts}, retrying in ${delay}ms: ${err.message}`);
         // Re-empty trash before retry
         await drive.files.emptyTrash().catch(() => {});

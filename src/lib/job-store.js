@@ -8,7 +8,7 @@ if (process.env.KV_REST_API_URL) {
   const store = new Map();
   kvStore = {
     async get(key) { return store.get(key) || null; },
-    async set(key, value) { store.set(key, value); },
+    async set(key, value, opts) { store.set(key, value); },
   };
   console.warn('[job-store] Using in-memory store (no KV_REST_API_URL set)');
 }
@@ -24,7 +24,7 @@ export async function createJob(jobId, candidateData) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  await kvStore.set(`job:${jobId}`, job);
+  await kvStore.set(`job:${jobId}`, job, { ex: 86400 });
   return job;
 }
 
@@ -47,7 +47,7 @@ export async function updateJobStage(jobId, stage, status, result = null, error 
     job.status = 'running';
   }
 
-  await kvStore.set(`job:${jobId}`, job);
+  await kvStore.set(`job:${jobId}`, job, { ex: 86400 });
   return job;
 }
 
