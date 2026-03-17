@@ -46,7 +46,6 @@ function getAuth() {
 }
 
 // Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
-function getDriveAuth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
@@ -77,7 +76,7 @@ async function freeDriveQuota(drive, impersonatingDrive) {
       }
       await d.files.emptyTrash().catch((err) =>
         console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
-      );
+B      );
     } catch (err) {
       console.log(`[writeSheets] files.list failed: ${err.message}`);
     }
@@ -177,9 +176,8 @@ async function populateSheet(sheets, spreadsheetId, sheetId, sheetTitle, startup
 
 export async function writeSheets({ categorizedStartups, candidateData }) {
   const auth = getAuth();
-  const driveAuth = getDriveAuth();
   const sheets = google.sheets({ version: 'v4', auth });
-  const drive = google.drive({ version: 'v3', auth: driveAuth });
+  const drive = google.drive({ version: 'v3', auth });
   // Impersonating Drive client — old files may have been created under this identity
   const impersonatingDrive = process.env.GOOGLE_IMPERSONATE_EMAIL
     ? google.drive({ version: 'v3', auth })
