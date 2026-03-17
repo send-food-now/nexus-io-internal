@@ -45,58 +45,46 @@ function getAuth() {
   });
 }
 
-// Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
-function getDriveAuth() {
-  return new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
-  });
-}
-
 // Delete old spreadsheets to free Drive quota
-async function freeDriveQuota(drive, impersonatingDrive) {
-  // Clean up with both auth types — old files may be owned by either identity
-  for (const d of [drive, impersonatingDrive].filter(Boolean)) {
-    try {
-      // Empty trash FIRST — trashed files still count against quota
-      await d.files.emptyTrash().catch((err) =>
-        console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
-      );
+async function freeDriveQuota(drive) {
+  try {
+    // Empty trash FIRST — trashed files still count against quota
+    await drive.files.emptyTrash().catch((err) =>
+      console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
+    );
 
-      // Paginate through ALL spreadsheets (not just 'H-1B1 Pipeline' named ones)
-      let pageToken = undefined;
-      let totalDeleted = 0;
-      do {
-        const response = await d.files.list({
-          q: "mimeType = 'application/vnd.google-apps.spreadsheet'",
-          fields: 'files(id,name),nextPageToken',
-          pageSize: 100,
-          pageToken,
-          supportsAllDrives: true,
-        });
-        const files = response.data.files || [];
-        pageToken = response.data.nextPageToken;
-        for (const f of files) {
-          try {
-            await d.files.delete({ fileId: f.id, supportsAllDrives: true });
-            totalDeleted++;
-            console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
-          } catch (err) {
-            console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
-          }
+    // Paginate through ALL spreadsheets owned by this identity
+    let pageToken = undefined;
+    let totalDeleted = 0;
+    do {
+      const response = await drive.files.list({
+        q: "mimeType = 'application/vnd.google-apps.spreadsheet'",
+        fields: 'files(id,name),nextPageToken',
+        pageSize: 100,
+        pageToken,
+        supportsAllDrives: true,
+      });
+      const files = response.data.files || [];
+      pageToken = response.data.nextPageToken;
+      for (const f of files) {
+        try {
+          await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
+          totalDeleted++;
+          console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
+        } catch (err) {
+          console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
         }
-      } while (pageToken);
+      }
+    } while (pageToken);
 
-      console.log(`[writeSheets] Cleanup complete: deleted ${totalDeleted} spreadsheets`);
+    console.log(`[writeSheets] Cleanup complete: deleted ${totalDeleted} spreadsheets`);
 
-      // Empty trash again after deleting files
-      await d.files.emptyTrash().catch((err) =>
-        console.log(`[writeSheets] emptyTrash (post-delete) failed: ${err.message}`)
-      );
-    } catch (err) {
-      console.log(`[writeSheets] files.list failed: ${err.message}`);
-    }
+    // Empty trash again after deleting files
+    await drive.files.emptyTrash().catch((err) =>
+      console.log(`[writeSheets] emptyTrash (post-delete) failed: ${err.message}`)
+    );
+  } catch (err) {
+    console.log(`[writeSheets] Cleanup failed: ${err.message}`);
   }
 }
 
@@ -193,13 +181,8 @@ async function populateSheet(sheets, spreadsheetId, sheetId, sheetTitle, startup
 
 export async function writeSheets({ categorizedStartups, candidateData }) {
   const auth = getAuth();
-  const driveAuth = getDriveAuth();
   const sheets = google.sheets({ version: 'v4', auth });
-  const drive = google.drive({ version: 'v3', auth: driveAuth });
-  // Impersonating Drive client — old files may have been created under this identity
-  const impersonatingDrive = process.env.GOOGLE_IMPERSONATE_EMAIL
-    ? google.drive({ version: 'v3', auth })
-    : null;
+  const drive = google.drive({ version: 'v3', auth });
 
   console.log(`[writeSheets] GOOGLE_IMPERSONATE_EMAIL is ${process.env.GOOGLE_IMPERSONATE_EMAIL ? 'SET' : 'NOT SET'}`);
   console.log(`[writeSheets] GOOGLE_DRIVE_FOLDER_ID is ${process.env.GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'NOT SET'}`);
@@ -208,8 +191,8 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const date = new Date().toISOString().split('T')[0];
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
-  // Free up quota by deleting old sheets + emptying trash (both auth types)
-  await freeDriveQuota(drive, impersonatingDrive);
+  // Free up quota by deleting old sheets + emptying trash
+  await freeDriveQuota(drive);
 
   // Wait for Google to propagate quota changes
   await new Promise(r => setTimeout(r, 5000));
