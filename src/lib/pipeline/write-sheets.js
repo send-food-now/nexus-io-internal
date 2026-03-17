@@ -36,34 +36,10 @@ const COLUMN_HEADERS = [
   'Created At',
 ];
 
-function getCredentials() {
-  // Prefer single JSON env var (per spec S3/S10)
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-    try {
-      const parsed = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
-      if (parsed.client_email && parsed.private_key) {
-        return {
-          client_email: parsed.client_email,
-          private_key: parsed.private_key.replace(/\\n/g, '\n'),
-        };
-      }
-      console.warn('[writeSheets] GOOGLE_SERVICE_ACCOUNT_KEY parsed but missing client_email or private_key, falling back to separate env vars');
-    } catch (err) {
-      console.warn(`[writeSheets] GOOGLE_SERVICE_ACCOUNT_KEY parse failed: ${err.message}, falling back to separate env vars`);
-    }
-  }
-  // Fallback to separate env vars
-  return {
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  };
-}
-
 function getAuth() {
-  const creds = getCredentials();
   return new google.auth.JWT({
-    email: creds.client_email,
-    key: creds.private_key,
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
     subject: process.env.GOOGLE_IMPERSONATE_EMAIL,
   });
@@ -71,10 +47,9 @@ function getAuth() {
 
 // Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
 function getDriveAuth() {
-  const creds = getCredentials();
   return new google.auth.JWT({
-    email: creds.client_email,
-    key: creds.private_key,
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
   });
 }
