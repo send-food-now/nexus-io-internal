@@ -45,43 +45,7 @@ function getAuth() {
   });
 }
 
-// Non-impersonating auth for Drive file creation — avoids impersonated user's quota limit
-  return new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'],
-  });
-}
 
-// Delete old pipeline spreadsheets to free Drive quota
-async function freeDriveQuota(drive, impersonatingDrive) {
-  // Clean up with both auth types — old files may be owned by either identity
-  for (const d of [drive, impersonatingDrive].filter(Boolean)) {
-    try {
-      const response = await d.files.list({
-        q: "name contains 'H-1B1 Pipeline' and mimeType = 'application/vnd.google-apps.spreadsheet'",
-        fields: 'files(id,name)',
-        pageSize: 100,
-        supportsAllDrives: true,
-      });
-      const files = response.data.files || [];
-      console.log(`[writeSheets] Found ${files.length} old pipeline files to clean up`);
-      for (const f of files) {
-        try {
-          await d.files.delete({ fileId: f.id, supportsAllDrives: true });
-          console.log(`[writeSheets] Deleted ${f.name} (${f.id})`);
-        } catch (err) {
-          console.log(`[writeSheets] Could not delete ${f.id}: ${err.message}`);
-        }
-      }
-      await d.files.emptyTrash().catch((err) =>
-        console.log(`[writeSheets] emptyTrash failed: ${err.message}`)
-B      );
-    } catch (err) {
-      console.log(`[writeSheets] files.list failed: ${err.message}`);
-    }
-  }
-}
 
 function startupToRow(startup, category) {
   const contact1 = startup.contacts?.[0] || {};
@@ -178,10 +142,6 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const auth = getAuth();
   const sheets = google.sheets({ version: 'v4', auth });
   const drive = google.drive({ version: 'v3', auth });
-  // Impersonating Drive client — old files may have been created under this identity
-  const impersonatingDrive = process.env.GOOGLE_IMPERSONATE_EMAIL
-    ? google.drive({ version: 'v3', auth })
-    : null;
 
   console.log(`[writeSheets] GOOGLE_IMPERSONATE_EMAIL is ${process.env.GOOGLE_IMPERSONATE_EMAIL ? 'SET' : 'NOT SET'}`);
   console.log(`[writeSheets] GOOGLE_DRIVE_FOLDER_ID is ${process.env.GOOGLE_DRIVE_FOLDER_ID ? 'SET' : 'NOT SET'}`);
@@ -190,8 +150,6 @@ export async function writeSheets({ categorizedStartups, candidateData }) {
   const date = new Date().toISOString().split('T')[0];
   const title = `H-1B1 Pipeline — ${candidateName} — ${date}`;
 
-  // Free up quota by deleting old sheets + emptying trash (both auth types)
-  await freeDriveQuota(drive, impersonatingDrive);
 
   // Create spreadsheet (optionally in a specific folder for organization)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
