@@ -37,14 +37,22 @@ const COLUMN_HEADERS = [
 ];
 
 function getCredentials() {
+  // Prefer single JSON env var (per spec S3/S10)
   if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-    const parsed = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
-    return {
-      client_email: parsed.client_email,
-      private_key: parsed.private_key,
-    };
+    try {
+      const parsed = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+      if (parsed.client_email && parsed.private_key) {
+        return {
+          client_email: parsed.client_email,
+          private_key: parsed.private_key.replace(/\\n/g, '\n'),
+        };
+      }
+      console.warn('[writeSheets] GOOGLE_SERVICE_ACCOUNT_KEY parsed but missing client_email or private_key, falling back to separate env vars');
+    } catch (err) {
+      console.warn(`[writeSheets] GOOGLE_SERVICE_ACCOUNT_KEY parse failed: ${err.message}, falling back to separate env vars`);
+    }
   }
-  // Fallback to separate env vars for backward compatibility
+  // Fallback to separate env vars
   return {
     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
