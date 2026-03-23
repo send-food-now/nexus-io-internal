@@ -65,13 +65,36 @@ function deduplicateByDomain(startups) {
   return Array.from(seen.values());
 }
 
-export async function discoverStartups({ candidateProfile, searchParams }) {
-  const { industries = [], fundingStages = [], locations = [], teamSizes = [], techStack = [], customInterests = [] } = searchParams;
+function filterByStage(startups, stageFilter) {
+  if (!stageFilter) return startups;
+
+  return startups.filter(s => {
+    const stage = (s.fundingStage || '').toLowerCase();
+    if (stageFilter === 'late') {
+      return stage.includes('series c') || stage.includes('series d') || stage.includes('series e') ||
+             stage.includes('growth') || stage.includes('late') || !stage;
+    }
+    return stage.includes('pre-seed') || stage.includes('seed') || stage.includes('series a') ||
+           stage.includes('series b') || stage.includes('early') || !stage;
+  });
+}
+
+export async function buildTargetList({ candidateProfile, opportunities, searchParams }) {
+  const { regions = [] } = searchParams;
+  const targetSectors = opportunities.targetSectors?.map(s => s.sector) || [];
+  const stageFilter = opportunities.stageFilter;
+
+  const searchQuery = [
+    'hiring startup',
+    ...targetSectors.slice(0, 3),
+    ...(candidateProfile.skills || []).slice(0, 3),
+    ...regions.slice(0, 2),
+  ].join(' ');
 
   const [crunchbaseResults, apolloResults, serperResults, dolResults] = await Promise.all([
-    Promise.resolve(searchStartups({ industries, fundingStages, locations, teamSizes })),
-    Promise.resolve(searchCompanies(industries.join(' '))),
-    searchSerper(`hiring ${techStack.slice(0, 3).join(' ')} startup ${locations.slice(0, 2).join(' ')} ${industries.slice(0, 2).join(' ')}`),
+    Promise.resolve(searchStartups({ industries: targetSectors, fundingStages: [], locations: regions, teamSizes: [] })),
+    Promise.resolve(searchCompanies(targetSectors.join(' '))),
+    searchSerper(searchQuery),
     Promise.resolve(parseDolCsv()),
   ]);
 
@@ -82,5 +105,6 @@ export async function discoverStartups({ candidateProfile, searchParams }) {
     ...dolResults,
   ];
 
-  return deduplicateByDomain(all);
+  const deduped = deduplicateByDomain(all);
+  return filterByStage(deduped, stageFilter);
 }

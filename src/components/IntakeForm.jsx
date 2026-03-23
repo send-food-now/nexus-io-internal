@@ -4,10 +4,12 @@ import { useState, useRef } from 'react';
 
 const theme = { bg: '#0a0a0a', fg: '#ededed', accent: '#3b82f6', muted: '#888', surface: '#141414', border: '#222' };
 
-const FUNDING_STAGES = ['Pre-seed', 'Seed', 'Series A', 'Series B', 'Series C+'];
-const TEAM_SIZES = ['1-10', '11-50', '51-200', '201-500', '500+'];
-const INDUSTRIES = ['AI/ML', 'Fintech', 'Healthcare', 'SaaS', 'E-commerce', 'DevTools', 'Cybersecurity', 'Climate', 'EdTech', 'Biotech'];
-const LOCATIONS = ['San Francisco', 'New York', 'Austin', 'Seattle', 'Boston', 'Remote', 'Los Angeles', 'Chicago'];
+const REGIONS = ['US — West Coast', 'US — East Coast', 'US — Midwest', 'US — South', 'Canada', 'Remote (US)', 'Remote (Global)'];
+const RISK_LABELS = ['1 — Very Conservative', '2 — Conservative', '3 — Moderate-Low', '4 — Moderate-High', '5 — Aggressive', '6 — Very Aggressive'];
+const DIRECTIONS = [
+  { value: 'double-down', label: 'Double Down', desc: 'Stay in my current domain and go deeper' },
+  { value: 'pivot', label: 'Pivot', desc: 'Explore adjacent or new spaces' },
+];
 
 function ChipSelect({ options, selected, onToggle }) {
   return (
@@ -21,31 +23,6 @@ function ChipSelect({ options, selected, onToggle }) {
           {opt}
         </button>
       ))}
-    </div>
-  );
-}
-
-function TagInput({ tags, onAdd, onRemove, placeholder }) {
-  const [value, setValue] = useState('');
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && value.trim()) {
-      e.preventDefault();
-      if (!tags.includes(value.trim())) onAdd(value.trim());
-      setValue('');
-    }
-  };
-  return (
-    <div>
-      <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder}
-        style={{ width: '100%', padding: '10px 14px', background: theme.bg, color: theme.fg, border: `1px solid ${theme.border}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box', marginBottom: 8 }} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {tags.map(tag => (
-          <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: theme.border, borderRadius: 14, fontSize: 12, color: theme.fg }}>
-            {tag}
-            <button type="button" onClick={() => onRemove(tag)} style={{ background: 'none', border: 'none', color: theme.muted, cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>&times;</button>
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
@@ -78,15 +55,17 @@ function FileDropzone({ file, onFile, label }) {
   );
 }
 
-const STEPS = ['Candidate Info', 'Search Parameters', 'Interests', 'Documents', 'Review'];
+const STEPS = ['Candidate Info', 'Search Parameters', 'Documents', 'Review'];
 
 export default function IntakeForm({ onJobCreated }) {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', visaStatus: 'H-1B1 Singapore',
-    fundingStages: [], teamSizes: [], industries: [], locations: [],
-    techStack: [], customInterests: [],
+    linkedinUrl: '', portfolioUrl: '', githubUrl: '',
+    regions: [],
+    riskAppetite: 3,
+    direction: 'double-down',
     resume: null, coverLetter: null,
   });
 
@@ -102,12 +81,12 @@ export default function IntakeForm({ onJobCreated }) {
       fd.append('name', form.name);
       fd.append('email', form.email);
       fd.append('visaStatus', form.visaStatus);
-      fd.append('fundingStages', JSON.stringify(form.fundingStages));
-      fd.append('teamSizes', JSON.stringify(form.teamSizes));
-      fd.append('industries', JSON.stringify(form.industries));
-      fd.append('locations', JSON.stringify(form.locations));
-      fd.append('techStack', JSON.stringify(form.techStack));
-      fd.append('customInterests', JSON.stringify(form.customInterests));
+      fd.append('linkedinUrl', form.linkedinUrl);
+      fd.append('portfolioUrl', form.portfolioUrl);
+      fd.append('githubUrl', form.githubUrl);
+      fd.append('regions', JSON.stringify(form.regions));
+      fd.append('riskAppetite', String(form.riskAppetite));
+      fd.append('direction', form.direction);
       if (form.resume) fd.append('resume', form.resume);
       if (form.coverLetter) fd.append('coverLetter', form.coverLetter);
 
@@ -139,6 +118,7 @@ export default function IntakeForm({ onJobCreated }) {
         <p style={{ color: theme.muted, fontSize: 12, marginBottom: 20 }}>Step {step + 1}: {STEPS[step]}</p>
 
         <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 28 }}>
+          {/* Step 1: Candidate Info */}
           {step === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div><label style={labelStyle}>Full Name</label><input value={form.name} onChange={e => update('name', e.target.value)} placeholder="Jane Doe" style={inputStyle} /></div>
@@ -149,45 +129,87 @@ export default function IntakeForm({ onJobCreated }) {
                   <option>H-1B1 Singapore</option><option>H-1B1 Chile</option><option>Other</option>
                 </select>
               </div>
+              <div><label style={labelStyle}>LinkedIn URL</label><input value={form.linkedinUrl} onChange={e => update('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/janedoe" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Portfolio URL</label><input value={form.portfolioUrl} onChange={e => update('portfolioUrl', e.target.value)} placeholder="https://janedoe.com" style={inputStyle} /></div>
+              <div><label style={labelStyle}>GitHub URL</label><input value={form.githubUrl} onChange={e => update('githubUrl', e.target.value)} placeholder="https://github.com/janedoe" style={inputStyle} /></div>
             </div>
           )}
 
+          {/* Step 2: Search Parameters */}
           {step === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div><label style={labelStyle}>Funding Stages</label><ChipSelect options={FUNDING_STAGES} selected={form.fundingStages} onToggle={v => toggleChip('fundingStages', v)} /></div>
-              <div><label style={labelStyle}>Team Sizes</label><ChipSelect options={TEAM_SIZES} selected={form.teamSizes} onToggle={v => toggleChip('teamSizes', v)} /></div>
-              <div><label style={labelStyle}>Industries</label><ChipSelect options={INDUSTRIES} selected={form.industries} onToggle={v => toggleChip('industries', v)} /></div>
-              <div><label style={labelStyle}>Locations</label><ChipSelect options={LOCATIONS} selected={form.locations} onToggle={v => toggleChip('locations', v)} /></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div>
+                <label style={labelStyle}>Preferred Geography</label>
+                <ChipSelect options={REGIONS} selected={form.regions} onToggle={v => toggleChip('regions', v)} />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Risk Appetite</label>
+                <p style={{ color: theme.muted, fontSize: 12, marginBottom: 12 }}>
+                  Low risk (1-3) targets late-stage firms (Series C+). High risk (4-6) targets early-stage firms (Series B or earlier).
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {RISK_LABELS.map((label, i) => {
+                    const value = i + 1;
+                    const isSelected = form.riskAppetite === value;
+                    return (
+                      <button key={value} type="button" onClick={() => update('riskAppetite', value)} style={{
+                        padding: '10px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+                        border: isSelected ? `2px solid ${theme.accent}` : `1px solid ${theme.border}`,
+                        background: isSelected ? `${theme.accent}15` : 'transparent',
+                        color: isSelected ? '#fff' : theme.fg,
+                        textAlign: 'left', fontWeight: isSelected ? 600 : 400,
+                      }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Desired Direction</label>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  {DIRECTIONS.map(d => {
+                    const isSelected = form.direction === d.value;
+                    return (
+                      <button key={d.value} type="button" onClick={() => update('direction', d.value)} style={{
+                        flex: 1, padding: '16px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                        border: isSelected ? `2px solid ${theme.accent}` : `1px solid ${theme.border}`,
+                        background: isSelected ? `${theme.accent}15` : 'transparent',
+                      }}>
+                        <p style={{ color: isSelected ? '#fff' : theme.fg, fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>{d.label}</p>
+                        <p style={{ color: theme.muted, fontSize: 12, margin: 0 }}>{d.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
+          {/* Step 3: Documents */}
           {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div><label style={labelStyle}>Tech Stack</label><TagInput tags={form.techStack} onAdd={t => update('techStack', [...form.techStack, t])} onRemove={t => update('techStack', form.techStack.filter(x => x !== t))} placeholder="Type and press Enter (e.g. React, Python)" /></div>
-              <div><label style={labelStyle}>Custom Interests</label><TagInput tags={form.customInterests} onAdd={t => update('customInterests', [...form.customInterests, t])} onRemove={t => update('customInterests', form.customInterests.filter(x => x !== t))} placeholder="Type and press Enter (e.g. climate tech)" /></div>
-            </div>
-          )}
-
-          {step === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div><label style={labelStyle}>Resume (PDF)</label><FileDropzone file={form.resume} onFile={f => update('resume', f)} label="Upload Resume" /></div>
               <div><label style={labelStyle}>Cover Letter (PDF)</label><FileDropzone file={form.coverLetter} onFile={f => update('coverLetter', f)} label="Upload Cover Letter" /></div>
             </div>
           )}
 
-          {step === 4 && (
+          {/* Step 4: Review */}
+          {step === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <h3 style={{ color: theme.fg, fontSize: 16, marginBottom: 4 }}>Review Submission</h3>
               <div style={{ fontSize: 13, color: theme.fg }}>
                 <p><span style={{ color: theme.muted }}>Name:</span> {form.name}</p>
                 <p><span style={{ color: theme.muted }}>Email:</span> {form.email}</p>
                 <p><span style={{ color: theme.muted }}>Visa:</span> {form.visaStatus}</p>
-                <p style={{ marginTop: 10 }}><span style={{ color: theme.muted }}>Funding:</span> {form.fundingStages.join(', ') || 'None selected'}</p>
-                <p><span style={{ color: theme.muted }}>Team Size:</span> {form.teamSizes.join(', ') || 'None selected'}</p>
-                <p><span style={{ color: theme.muted }}>Industries:</span> {form.industries.join(', ') || 'None selected'}</p>
-                <p><span style={{ color: theme.muted }}>Locations:</span> {form.locations.join(', ') || 'None selected'}</p>
-                <p style={{ marginTop: 10 }}><span style={{ color: theme.muted }}>Tech Stack:</span> {form.techStack.join(', ') || 'None'}</p>
-                <p><span style={{ color: theme.muted }}>Interests:</span> {form.customInterests.join(', ') || 'None'}</p>
+                {form.linkedinUrl && <p><span style={{ color: theme.muted }}>LinkedIn:</span> {form.linkedinUrl}</p>}
+                {form.portfolioUrl && <p><span style={{ color: theme.muted }}>Portfolio:</span> {form.portfolioUrl}</p>}
+                {form.githubUrl && <p><span style={{ color: theme.muted }}>GitHub:</span> {form.githubUrl}</p>}
+                <p style={{ marginTop: 10 }}><span style={{ color: theme.muted }}>Regions:</span> {form.regions.join(', ') || 'None selected'}</p>
+                <p><span style={{ color: theme.muted }}>Risk Appetite:</span> {RISK_LABELS[form.riskAppetite - 1]}</p>
+                <p><span style={{ color: theme.muted }}>Direction:</span> {DIRECTIONS.find(d => d.value === form.direction)?.label}</p>
                 <p style={{ marginTop: 10 }}><span style={{ color: theme.muted }}>Resume:</span> {form.resume?.name || 'Not uploaded'}</p>
                 <p><span style={{ color: theme.muted }}>Cover Letter:</span> {form.coverLetter?.name || 'Not uploaded'}</p>
               </div>
@@ -201,7 +223,7 @@ export default function IntakeForm({ onJobCreated }) {
             style={{ padding: '10px 20px', background: theme.surface, color: step === 0 ? theme.muted : theme.fg, border: `1px solid ${theme.border}`, borderRadius: 8, cursor: step === 0 ? 'default' : 'pointer', fontSize: 14 }}>
             Back
           </button>
-          {step < 4 ? (
+          {step < 3 ? (
             <button type="button" onClick={() => setStep(s => s + 1)}
               style={{ padding: '10px 20px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
               Next

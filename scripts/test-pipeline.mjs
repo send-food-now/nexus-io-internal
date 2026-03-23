@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// End-to-end pipeline test — runs all 7 stages directly (bypasses Inngest).
+// End-to-end pipeline test — runs all phases directly (bypasses Inngest).
 // Usage: node scripts/test-pipeline.mjs
 // Requires: .env.local with ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_EMAIL,
 //           GOOGLE_PRIVATE_KEY, RESEND_API_KEY, ADMIN_EMAIL
@@ -57,12 +57,12 @@ Best regards,
 Alex Chen`;
 
 const SEARCH_PARAMS = {
-  industries: ['AI/ML', 'Fintech', 'Developer Tools'],
-  fundingStages: ['Series A', 'Series B'],
-  locations: ['San Francisco', 'New York'],
-  teamSizes: ['11-50', '51-200'],
-  techStack: ['TypeScript', 'React', 'Node.js', 'Python', 'Kubernetes'],
-  customInterests: ['real-time systems', 'payment infrastructure'],
+  linkedinUrl: 'https://linkedin.com/in/alexchen',
+  portfolioUrl: '',
+  githubUrl: 'https://github.com/alexchen',
+  regions: ['US — West Coast', 'US — East Coast'],
+  riskAppetite: 4,
+  direction: 'double-down',
 };
 
 const CANDIDATE_DATA = {
@@ -139,8 +139,8 @@ function checkEnv() {
   const skipSheets = !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY;
   const skipNotify = !process.env.RESEND_API_KEY || !process.env.ADMIN_EMAIL;
 
-  if (skipSheets) console.log('\n⚠ Will SKIP Stage 6 (write-sheets) — no Google credentials');
-  if (skipNotify) console.log('⚠ Will SKIP Stage 7 (notify) — no Resend credentials');
+  if (skipSheets) console.log('\n⚠ Will SKIP Phase 4.0 (write-sheets) — no Google credentials');
+  if (skipNotify) console.log('⚠ Will SKIP Phase 4.1 (notify) — no Resend credentials');
 
   return { skipSheets, skipNotify };
 }
@@ -155,61 +155,56 @@ async function main() {
 
   const { skipSheets, skipNotify } = checkEnv();
 
-  // Stage 1: Profile Candidate
-  const { profileCandidate } = await import('../src/lib/pipeline/profile-candidate.js');
-  const candidateProfile = await runStage('1. Profile Candidate', () =>
-    profileCandidate({ resumeText: RESUME_TEXT, coverLetterText: COVER_LETTER_TEXT })
+  // Phase 2.0: Analyze Candidate
+  const { analyzeCandidate } = await import('../src/lib/pipeline/analyze-candidate.js');
+  const candidateProfile = await runStage('2.0 Analyze Candidate', () =>
+    analyzeCandidate({ resumeText: RESUME_TEXT, coverLetterText: COVER_LETTER_TEXT, linkedinUrl: SEARCH_PARAMS.linkedinUrl, portfolioUrl: SEARCH_PARAMS.portfolioUrl, githubUrl: SEARCH_PARAMS.githubUrl })
   );
 
-  // Stage 2: Discover Startups
-  const { discoverStartups } = await import('../src/lib/pipeline/discover-startups.js');
-  const startups = await runStage('2. Discover Startups', () =>
-    discoverStartups({ candidateProfile, searchParams: SEARCH_PARAMS })
+  // Phase 2.1: Identify Opportunities
+  const { identifyOpportunities } = await import('../src/lib/pipeline/identify-opportunities.js');
+  const opportunities = await runStage('2.1 Identify Opportunities', () =>
+    identifyOpportunities({ candidateProfile, searchParams: SEARCH_PARAMS })
+  );
+
+  console.log(`  Target sectors: ${opportunities.targetSectors?.map(s => s.sector).join(', ')}`);
+  console.log(`  Stage filter: ${opportunities.stageFilter}`);
+
+  // Phase 3.0: Build Target List
+  const { buildTargetList } = await import('../src/lib/pipeline/build-target-list.js');
+  const startups = await runStage('3.0 Build Target List', () =>
+    buildTargetList({ candidateProfile, opportunities, searchParams: SEARCH_PARAMS })
   );
 
   console.log(`  Found ${startups.length} startups`);
 
-  // Stage 3: Categorize
-  const { categorizeStartups } = await import('../src/lib/pipeline/categorize.js');
-  const categorizedStartups = await runStage('3. Categorize', () =>
-    categorizeStartups({ startups, candidateProfile, searchParams: SEARCH_PARAMS })
+  // Phase 3.1: Populate Context
+  const { populateContext } = await import('../src/lib/pipeline/populate-context.js');
+  const enrichedStartups = await runStage('3.1 Populate Context', () =>
+    populateContext({ startups, candidateProfile, opportunities })
   );
 
-  console.log(`  Exact: ${categorizedStartups.exact.length}, Recommended: ${categorizedStartups.recommended.length}, Luck: ${categorizedStartups.luck.length}`);
-
-  // Stage 4: Enrich
-  const { enrichStartups } = await import('../src/lib/pipeline/enrich-startups.js');
-  const enrichedStartups = await runStage('4. Enrich Startups', () =>
-    enrichStartups({ categorizedStartups })
-  );
-
-  // Stage 5: Generate Outreach
-  const { generateOutreach } = await import('../src/lib/pipeline/generate-outreach.js');
-  const outreachStartups = await runStage('5. Generate Outreach', () =>
-    generateOutreach({ categorizedStartups: enrichedStartups, candidateProfile })
-  );
-
-  // Stage 6: Write Sheets
+  // Phase 4.0: Write Sheets
   let sheetsResult = null;
   if (!skipSheets) {
     const { writeSheets } = await import('../src/lib/pipeline/write-sheets.js');
-    sheetsResult = await runStage('6. Write Sheets', () =>
-      writeSheets({ categorizedStartups: outreachStartups, candidateData: CANDIDATE_DATA })
+    sheetsResult = await runStage('4.0 Write Sheets', () =>
+      writeSheets({ startups: enrichedStartups, candidateData: CANDIDATE_DATA })
     );
     console.log(`  Spreadsheet URL: ${sheetsResult.spreadsheetUrl}`);
   } else {
-    console.log('\n⏭ Skipping Stage 6 (write-sheets)');
+    console.log('\n⏭ Skipping Phase 4.0 (write-sheets)');
   }
 
-  // Stage 7: Notify
+  // Phase 4.1: Notify
   let notifyResult = null;
   if (!skipNotify && sheetsResult) {
     const { notifyAdmin } = await import('../src/lib/pipeline/notify.js');
-    notifyResult = await runStage('7. Notify Admin', () =>
+    notifyResult = await runStage('4.1 Notify Admin', () =>
       notifyAdmin({ jobId: 'test-run-001', candidateData: CANDIDATE_DATA, spreadsheetUrl: sheetsResult.spreadsheetUrl })
     );
   } else {
-    console.log('\n⏭ Skipping Stage 7 (notify)');
+    console.log('\n⏭ Skipping Phase 4.1 (notify)');
   }
 
   // Summary
@@ -219,7 +214,7 @@ async function main() {
   console.log(`Total time: ${elapsed(pipelineStart)}`);
   console.log(`Candidate: ${CANDIDATE_DATA.name}`);
   console.log(`Startups found: ${startups.length}`);
-  console.log(`Exact: ${outreachStartups.exact.length}, Recommended: ${outreachStartups.recommended.length}, Luck: ${outreachStartups.luck.length}`);
+  console.log(`Enriched: ${enrichedStartups.length}`);
   if (sheetsResult) console.log(`Sheet: ${sheetsResult.spreadsheetUrl}`);
   if (notifyResult) console.log(`Email ID: ${notifyResult.emailId}`);
   console.log();
