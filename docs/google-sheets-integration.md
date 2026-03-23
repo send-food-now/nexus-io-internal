@@ -1,9 +1,9 @@
 # Google Sheets Integration Spec — Nexus.io Pipeline Output
 
 > Drop this file in your repo root. Reference it in every Claude Code session that touches Sheets output.
-> 
-> **File:** `src/lib/pipeline/write-sheets.js`  
-> **Main export:** `writeSheets({ categorizedStartups, candidateData })`  
+>
+> **File:** `src/lib/pipeline/write-sheets.js`
+> **Main export:** `writeSheets({ startups, candidateData })`
 > **Returns:** `{ spreadsheetId, spreadsheetUrl }`
 
 ---
@@ -38,9 +38,9 @@ for (const file of filesToDelete) {
 }
 ```
 
-2. **Fix `freeDriveQuota()` (line 58)** — this function is supposed to handle cleanup but is either failing silently or filtering too narrowly. See Section 7 for required behavior.
+2. **Review `freeDriveQuota()` (line 46)** — this function handles cleanup before each run. See Section 7 for current behavior and known limitations.
 
-3. **Do not rewrite auth or Sheets API logic to fix this.** The write path is likely correct — the problem is accumulation of orphaned files.
+3. **Do not rewrite auth or Sheets API logic to fix this.** The write path is correct — the problem is accumulation of orphaned files.
 
 ---
 
@@ -50,13 +50,14 @@ The pipeline output follows a **create-per-run** pattern, not an append-to-exist
 
 ```
 Pipeline run
-  → freeDriveQuota()        // Delete old spreadsheets from service account Drive
-  → Drive API: create new spreadsheet  // Named "H-1B1 Pipeline — {name} — {date}"
-  → Sheets API: create 3 tabs         // "Exact Match", "Recommended", "Luck"
-  → Sheets API: populate each tab     // 34-column rows via values.update
-  → Sheets API: format headers        // Blue background, white bold text
+  → freeDriveQuota(drive, impersonatingDrive)  // Delete old spreadsheets
+  → Drive API: create new spreadsheet           // Named "H-1B1 Pipeline — {name} — {date}"
+  → Sheets API: rename default sheet            // "Target List"
+  → Sort startups by fit score descending
+  → Sheets API: populate sheet                  // 23-column rows via values.update
+  → Sheets API: format headers                  // Blue background, white bold text
   → Sheets API: auto-resize columns
-  → Drive API: share with candidate   // Writer access to candidate email
+  → Drive API: share with candidate             // Writer access to candidate email
   → Return { spreadsheetId, spreadsheetUrl }
 ```
 
@@ -70,24 +71,30 @@ The code uses **two separate auth instances**. Do not consolidate them.
 
 | Auth instance | Method | Used for | Scopes |
 |---------------|--------|----------|--------|
-| `getAuth()` | JWT with impersonation | Sheets API (read/write cell data) | `spreadsheets` |
-| `getDriveAuth()` | Plain service account | Drive API (create files, delete files, share) | `drive.file`, `drive` |
+| `getAuth()` | JWT with impersonation (`subject`) | Sheets API + impersonating Drive | `spreadsheets`, `drive` |
+| `getDriveAuth()` | Plain service account (no `subject`) | Drive API (create files, delete files, share) | `spreadsheets`, `drive` |
+
+Both use the same scopes but differ in whether `subject` (impersonation via `GOOGLE_IMPERSONATE_EMAIL`) is set.
 
 ### Credential Storage
 
-Store the entire service account JSON as a single environment variable:
+Credentials are stored as **two separate environment variables** (not a single JSON blob):
 
 ```
-GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"...","private_key":"...","client_email":"...","..."}
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n
 ```
 
-In code, parse it:
+In code:
 
 ```javascript
-const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
 ```
 
-**Never commit the JSON key file to the repo.**
+The `replace(/\\n/g, '\n')` call converts escaped newlines (from env var storage) into real newlines for the PEM key.
+
+**Never commit credentials to the repo.**
 
 ---
 
@@ -109,59 +116,47 @@ npm install googleapis
 
 Each spreadsheet is named: `H-1B1 Pipeline — {candidateName} — {YYYY-MM-DD}`
 
-Optionally placed in a configured Drive folder.
+Optionally placed in a configured Drive folder via `GOOGLE_DRIVE_FOLDER_ID`.
 
-### Tabs (3 per spreadsheet)
+### Tab (1 per spreadsheet)
 
 | Tab name | Contents |
 |----------|----------|
-| Exact Match | Startups categorized as exact match |
-| Recommended | Startups categorized as recommended |
-| Luck | Startups categorized as luck/long-shot |
+| Target List | All startups, sorted by fit score descending |
 
-### Column mapping (34 columns, A–AH)
+### Column mapping (23 columns, A–W)
 
-| Column | Field | Type | Notes |
-|--------|-------|------|-------|
-| A | Company | string | Company name |
-| B | Domain | string | Company domain |
-| C | Industry | string | |
-| D | Description | string | Company description |
-| E | Funding Stage | string | |
-| F | Funding Amount | string | |
-| G | Team Size | string | |
-| H | Location | string | |
-| I | Founded | string | |
-| J | Tech Stack | string | |
-| K | Technical Fit Score | number | |
-| L | Parameter Match Score | number | |
-| M | Visa Score | number | |
-| N | Trending Score | number | |
-| O | Overall Score | number | |
-| P | Contact 1 Name | string | |
-| Q | Contact 1 Title | string | |
-| R | Contact 1 Email | string | |
-| S | Contact 1 LinkedIn | string | URL |
-| T | Contact 2 Name | string | |
-| U | Contact 2 Title | string | |
-| V | Contact 2 Email | string | |
-| W | Contact 2 LinkedIn | string | URL |
-| X | Recent News | string | Semicolon-separated |
-| Y | Career Page | string | URL |
-| Z | Immigrant Workforce % | string | |
-| AA | Personalized Hook | string | |
-| AB | Fit Rationale | string | |
-| AC | Email (Short) | string | |
-| AD | Email (Long) | string | |
-| AE | H-1B1 History | string | |
-| AF | Category | string | "Exact Match", "Recommended", or "Luck" |
-| AG | Created At | string | ISO 8601 timestamp |
+| Column | Header | Source field | Type | Notes |
+|--------|--------|-------------|------|-------|
+| A | Company | `name` | string | Company name |
+| B | Domain | `domain` | string | Company domain |
+| C | Industry | `industry` | string | |
+| D | Description | `description` | string | Company description |
+| E | Funding Stage | `fundingStage` | string | |
+| F | Location | `location` | string | |
+| G | Team Size | `teamSize` | string | |
+| H | Contact 1 Name | `contacts[0].name` | string | |
+| I | Contact 1 Title | `contacts[0].title` | string | |
+| J | Contact 1 Email | `contacts[0].email` | string | |
+| K | Contact 2 Name | `contacts[1].name` | string | |
+| L | Contact 2 Title | `contacts[1].title` | string | |
+| M | Contact 2 Email | `contacts[1].email` | string | |
+| N | Fit Score (/10) | `fitScore` | number | 1–10 scale |
+| O | Narrative Fit | `narrativeFit` | string | One-liner on strategic fit |
+| P | Email Subject 1 | `emailSubjectLines[0]` | string | |
+| Q | Email Subject 2 | `emailSubjectLines[1]` | string | |
+| R | Email Subject 3 | `emailSubjectLines[2]` | string | |
+| S | Recent News | `recentNews` | string | Semicolon-separated (joined from array of `{ title }`) |
+| T | Career Page | `careerPageUrl` | string | URL |
+| U | H-1B1 History | `h1b1Approvals` | string | Formatted as `"{n} approvals"` |
+| V | Source | `source` | string | Comma-separated if array |
+| W | Created At | auto-generated | string | ISO 8601 timestamp |
 
 Column headers are defined in `COLUMN_HEADERS` (line 3 of write-sheets.js).
 
 ### Header formatting
 
-Row 1 of each tab: blue background (`#4472C4`), white bold text. Applied via `sheets.spreadsheets.batchUpdate` with `repeatCell` request.
+Row 1: blue background (RGB: 0.231, 0.51, 0.965), white bold text. Applied via `sheets.spreadsheets.batchUpdate` with `repeatCell` request.
 
 ---
 
@@ -173,11 +168,7 @@ Row 1 of each tab: blue background (`#4472C4`), white bold text. Applied via `sh
 
 ```javascript
 {
-  categorizedStartups: {
-    "Exact Match": [ startupObj, startupObj, ... ],
-    "Recommended": [ startupObj, startupObj, ... ],
-    "Luck": [ startupObj, startupObj, ... ],
-  },
+  startups: [ startupObj, startupObj, ... ],  // flat array, unsorted
   candidateData: {
     name: "Lim Zi Jian",
     email: "candidate@email.com",  // optional, used for sharing
@@ -185,49 +176,72 @@ Row 1 of each tab: blue background (`#4472C4`), white bold text. Applied via `sh
 }
 ```
 
+### Startup object shape
+
+```javascript
+{
+  name: "Acme Corp",
+  domain: "acme.com",
+  industry: "AI/ML",
+  description: "...",
+  fundingStage: "Series B",
+  location: "San Francisco, CA",
+  teamSize: "50-100",
+  contacts: [
+    { name: "Jane Doe", title: "CTO", email: "jane@acme.com" },
+    { name: "John Smith", title: "VP Eng", email: "john@acme.com" },
+  ],
+  fitScore: 8,
+  narrativeFit: "Strong AI background aligns with their core product",
+  emailSubjectLines: ["Subject 1", "Subject 2", "Subject 3"],
+  recentNews: [{ title: "Acme raises Series B" }],  // or string
+  careerPageUrl: "https://acme.com/careers",
+  h1b1Approvals: 5,
+  source: "crunchbase",  // or ["crunchbase", "serper"]
+}
+```
+
 ### Row conversion
 
-`startupToRow()` (line 87) maps each startup object into a 34-element array matching `COLUMN_HEADERS`. The mapping must stay in sync with the column table above.
+`startupToRow()` (line 74) maps each startup object into a 23-element array matching `COLUMN_HEADERS`. The mapping must stay in sync with the column table above.
 
 ### Write method
 
-Each tab is populated via `sheets.spreadsheets.values.update` (not append):
+The single tab is populated via `sheets.spreadsheets.values.update` (not append):
 
 ```javascript
 await sheets.spreadsheets.values.update({
   spreadsheetId,
-  range: `${tabName}!A1:AH${rows.length + 1}`, // +1 for header row
-  valueInputOption: 'USER_ENTERED',
-  requestBody: {
-    values: [COLUMN_HEADERS, ...rows],
-  },
+  range: "'Target List'!A1",
+  valueInputOption: 'RAW',
+  requestBody: { values: rows },  // rows = [COLUMN_HEADERS, ...sortedStartupRows]
 });
 ```
 
-This writes headers + data in a single call per tab. Since each spreadsheet is fresh, `update` (overwrite) is correct — not `append`.
+Startups are sorted by `fitScore` descending before writing. Since each spreadsheet is fresh, `update` (overwrite) is correct — not `append`.
 
 ---
 
 ## 7. Drive Cleanup: `freeDriveQuota()` — CRITICAL
 
-This function (line 58) runs **before** creating a new spreadsheet. Its job is to prevent service account Drive quota exhaustion.
+This function (line 46) runs **before** creating a new spreadsheet. Its job is to prevent service account Drive quota exhaustion.
 
-### Required behavior
+### Current behavior
 
-1. List all files owned by the service account (not just files matching a specific name pattern)
-2. Log: total file count, total size, names of files found
-3. Delete files older than the most recent N runs (suggest N = 5)
-4. **Must complete successfully before proceeding to spreadsheet creation**
-5. If cleanup fails, **log the error and halt execution** — do not silently continue to create another file
+1. Takes two arguments: `(drive, impersonatingDrive)` — iterates both (skipping null)
+2. Queries files matching: `name contains 'H-1B1 Pipeline'` AND `mimeType = 'application/vnd.google-apps.spreadsheet'`
+3. Deletes all matching files (permanent delete via `drive.files.delete`)
+4. Empties trash via `drive.files.emptyTrash()`
+5. Logs each deletion
 
-### Common failure modes
+### Known limitations (future improvements)
 
-| Problem | Symptom | Fix |
-|---------|---------|-----|
-| Name filter too narrow | Only deletes files matching exact pattern, misses files from earlier naming conventions or failed runs | Query `trashed = false` without name filter, then apply retention logic |
-| Silent error swallow | `try/catch` with no logging — cleanup fails but pipeline proceeds | Add explicit logging and re-throw or halt |
-| Pagination missing | Only checks first page of results (100 files) | Use `nextPageToken` to iterate all files |
-| Trashed but not purged | Files in trash still count toward quota | Use `drive.files.delete` (permanent) not `drive.files.update({ trashed: true })` |
+| Problem | Current state | Recommended fix |
+|---------|--------------|-----------------|
+| Name filter too narrow | Only deletes files matching `"H-1B1 Pipeline"` — misses files from other naming conventions or failed runs | Query `trashed = false` without name filter, then apply retention logic |
+| Silent error swallow | `try/catch` logs but does not re-throw — pipeline continues even if cleanup fails | Re-throw or halt on cleanup failure |
+| Pagination missing | Only checks first page (100 files) | Use `nextPageToken` to iterate all files |
+| No retention policy | Deletes ALL matching files, not keeping recent N | Keep most recent N runs (suggest N = 5) |
 
 ---
 
@@ -243,6 +257,7 @@ await drive.permissions.create({
     role: 'writer',
     emailAddress: candidateData.email,
   },
+  supportsAllDrives: true,
 });
 ```
 
@@ -255,8 +270,9 @@ Only runs if `candidateData.email` is provided. Skipped otherwise.
 | Error | Cause | Action |
 |-------|-------|--------|
 | `Drive storage quota exceeded` | Service account Drive full from accumulated files | Run cleanup — see Section 7. **Not a code/auth issue.** |
+| `No key or keyFile set` | `GOOGLE_PRIVATE_KEY` env var missing or empty | Check Vercel env vars / `.env.local` — ensure `GOOGLE_PRIVATE_KEY` is set |
 | 403 Forbidden | Service account lacks Drive/Sheets permissions | Check API enablement in GCP console and service account roles |
-| 401 Unauthorized | Bad credentials or impersonation misconfigured | Re-check `GOOGLE_SERVICE_ACCOUNT_KEY` env var; verify impersonation target in `getAuth()` |
+| 401 Unauthorized | Bad credentials or impersonation misconfigured | Re-check `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_PRIVATE_KEY` env vars; verify `GOOGLE_IMPERSONATE_EMAIL` if using impersonation |
 | 429 Rate limit | Too many API calls | Retry with exponential backoff (max 3 retries) |
 | 404 Not found | Spreadsheet deleted between create and populate | Should not happen in normal flow — indicates race condition or external deletion |
 
@@ -283,10 +299,12 @@ async function withRetry(fn, maxRetries = 3) {
 
 ## 10. Environment Variables
 
-| Variable | Value | Where |
-|----------|-------|-------|
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Full service account JSON (stringified) | Vercel env vars / `.env.local` |
-| `GOOGLE_DRIVE_FOLDER_ID` | Optional — Drive folder to place new spreadsheets in | Vercel env vars / `.env.local` |
+| Variable | Required | Value | Where |
+|----------|----------|-------|-------|
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Yes | Service account email (e.g. `foo@project.iam.gserviceaccount.com`) | Vercel env vars / `.env.local` |
+| `GOOGLE_PRIVATE_KEY` | Yes | PEM private key (with `\n` for newlines) | Vercel env vars / `.env.local` |
+| `GOOGLE_IMPERSONATE_EMAIL` | No | Email to impersonate via domain-wide delegation | Vercel env vars / `.env.local` |
+| `GOOGLE_DRIVE_FOLDER_ID` | No | Drive folder ID to place new spreadsheets in | Vercel env vars / `.env.local` |
 
 Note: There is no `GOOGLE_SHEET_ID` env var — spreadsheet IDs are generated dynamically per run.
 
@@ -295,24 +313,26 @@ Note: There is no `GOOGLE_SHEET_ID` env var — spreadsheet IDs are generated dy
 ## 11. Execution Flow (for Claude Code reference)
 
 ```
-writeSheets({ categorizedStartups, candidateData })
+writeSheets({ startups, candidateData })
 │
-├─ getAuth()          → JWT auth for Sheets API
-├─ getDriveAuth()     → Service account auth for Drive API
+├─ getAuth()          → JWT auth (with impersonation if GOOGLE_IMPERSONATE_EMAIL set)
+├─ getDriveAuth()     → Plain service account auth (no impersonation)
 │
-├─ freeDriveQuota()   → ⚠️ MUST succeed before continuing
-│   ├─ List all service account files
-│   ├─ Log count and total size
-│   ├─ Delete files beyond retention limit
-│   └─ If fails → log error, HALT
+├─ freeDriveQuota(drive, impersonatingDrive)
+│   ├─ For each drive instance (service account + impersonating):
+│   │   ├─ List files matching "H-1B1 Pipeline" spreadsheets
+│   │   ├─ Delete each file (permanent)
+│   │   └─ Empty trash
+│   └─ Errors logged but not re-thrown (known limitation)
 │
 ├─ drive.files.create()  → New spreadsheet: "H-1B1 Pipeline — {name} — {date}"
 │
-├─ For each tab ["Exact Match", "Recommended", "Luck"]:
-│   ├─ sheets.spreadsheets.batchUpdate() → Add tab
-│   ├─ populateSheet() → values.update with headers + rows
-│   ├─ sheets.spreadsheets.batchUpdate() → Format header row
-│   └─ sheets.spreadsheets.batchUpdate() → Auto-resize columns
+├─ Sort startups by fitScore descending
+│
+├─ sheets.spreadsheets.batchUpdate() → Rename default sheet to "Target List"
+├─ sheets.spreadsheets.values.update() → Write headers + rows (23 columns)
+├─ sheets.spreadsheets.batchUpdate() → Format header row (blue bg, white bold)
+├─ sheets.spreadsheets.batchUpdate() → Auto-resize columns
 │
 ├─ drive.permissions.create() → Share with candidate (if email provided)
 │
@@ -327,8 +347,10 @@ writeSheets({ categorizedStartups, candidateData })
 - [ ] Enable the Google Sheets API
 - [ ] Enable the Google Drive API
 - [ ] Create a service account and download the JSON key
-- [ ] If using impersonation in `getAuth()`: set up domain-wide delegation
-- [ ] Add `GOOGLE_SERVICE_ACCOUNT_KEY` to Vercel env vars (or `.env.local`)
+- [ ] Extract `client_email` → set as `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+- [ ] Extract `private_key` → set as `GOOGLE_PRIVATE_KEY`
+- [ ] If using impersonation: set up domain-wide delegation and set `GOOGLE_IMPERSONATE_EMAIL`
+- [ ] Add env vars to Vercel dashboard (and/or `.env.local` for local dev)
 - [ ] Optionally create a Drive folder and add `GOOGLE_DRIVE_FOLDER_ID`
 - [ ] Verify service account Drive quota has available space (run the listing script from Section 1)
 
@@ -339,9 +361,8 @@ writeSheets({ categorizedStartups, candidateData })
 When working on this file, follow these rules:
 
 1. **Do not change the create-per-run pattern.** Each candidate gets their own spreadsheet. This is intentional.
-2. **Do not consolidate the two auth instances.** `getAuth()` and `getDriveAuth()` serve different purposes.
-3. **Always run and verify `freeDriveQuota()` before creating files.** Never skip or comment out cleanup.
-4. **Keep `startupToRow()` in sync with `COLUMN_HEADERS`.** If columns change, update both.
+2. **Do not consolidate the two auth instances.** `getAuth()` and `getDriveAuth()` serve different purposes (impersonation vs plain).
+3. **Always run `freeDriveQuota()` before creating files.** Never skip or comment out cleanup.
+4. **Keep `startupToRow()` in sync with `COLUMN_HEADERS`.** If columns change, update both. Current: 23 columns (A–W).
 5. **If you encounter a quota error, diagnose first — do not rewrite auth logic.** Quota errors are almost always about accumulated files, not bad credentials.
 6. **Log before every Drive API call** (create, delete, share) so failures are traceable.
-
