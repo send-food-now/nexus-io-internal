@@ -11,12 +11,12 @@ export async function POST(request) {
     const name = formData.get('name');
     const email = formData.get('email');
     const visaStatus = formData.get('visaStatus');
-    const fundingStages = JSON.parse(formData.get('fundingStages') || '[]');
-    const teamSizes = JSON.parse(formData.get('teamSizes') || '[]');
-    const industries = JSON.parse(formData.get('industries') || '[]');
-    const locations = JSON.parse(formData.get('locations') || '[]');
-    const techStack = JSON.parse(formData.get('techStack') || '[]');
-    const customInterests = JSON.parse(formData.get('customInterests') || '[]');
+    const linkedinUrl = formData.get('linkedinUrl') || '';
+    const portfolioUrl = formData.get('portfolioUrl') || '';
+    const githubUrl = formData.get('githubUrl') || '';
+    const regions = JSON.parse(formData.get('regions') || '[]');
+    const riskAppetite = parseInt(formData.get('riskAppetite') || '3', 10);
+    const direction = formData.get('direction') || 'double-down';
 
     const resumeFile = formData.get('resume');
     const coverLetterFile = formData.get('coverLetter');
@@ -38,7 +38,7 @@ export async function POST(request) {
 
     const jobId = crypto.randomUUID();
     const candidateData = { name, email, visaStatus };
-    const searchParams = { fundingStages, teamSizes, industries, locations, techStack, customInterests };
+    const searchParams = { linkedinUrl, portfolioUrl, githubUrl, regions, riskAppetite, direction };
 
     await createJob(jobId, candidateData);
 

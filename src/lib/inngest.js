@@ -9,82 +9,74 @@ export const pipelineFunction = inngest.createFunction(
   async ({ event, step }) => {
     const { jobId, candidateData, resumeText, coverLetterText, searchParams } = event.data;
 
-    // Stage 1: Profile
-    const candidateProfile = await step.run('profile', async () => {
-      await updateJobStage(jobId, 'profile', 'running');
+    // Phase 2.0: Analyze Candidate
+    const candidateProfile = await step.run('analyze-candidate', async () => {
+      await updateJobStage(jobId, 'analyze', 'running');
       try {
-        const { profileCandidate } = await import('./pipeline/profile-candidate');
-        const result = await profileCandidate({ resumeText, coverLetterText });
-        await updateJobStage(jobId, 'profile', 'completed', result);
+        const { analyzeCandidate } = await import('./pipeline/analyze-candidate');
+        const result = await analyzeCandidate({
+          resumeText,
+          coverLetterText,
+          linkedinUrl: searchParams.linkedinUrl,
+          portfolioUrl: searchParams.portfolioUrl,
+          githubUrl: searchParams.githubUrl,
+        });
+        await updateJobStage(jobId, 'analyze', 'completed', result);
         return result;
       } catch (error) {
-        await updateJobStage(jobId, 'profile', 'error', null, error.message);
+        await updateJobStage(jobId, 'analyze', 'error', null, error.message);
         throw error;
       }
     });
 
-    // Stage 2: Discover
-    const startups = await step.run('discover', async () => {
-      await updateJobStage(jobId, 'discover', 'running');
+    // Phase 2.1: Identify Opportunities
+    const opportunities = await step.run('identify-opportunities', async () => {
+      await updateJobStage(jobId, 'opportunities', 'running');
       try {
-        const { discoverStartups } = await import('./pipeline/discover-startups');
-        const result = await discoverStartups({ candidateProfile, searchParams });
-        await updateJobStage(jobId, 'discover', 'completed', result);
+        const { identifyOpportunities } = await import('./pipeline/identify-opportunities');
+        const result = await identifyOpportunities({ candidateProfile, searchParams });
+        await updateJobStage(jobId, 'opportunities', 'completed', result);
         return result;
       } catch (error) {
-        await updateJobStage(jobId, 'discover', 'error', null, error.message);
+        await updateJobStage(jobId, 'opportunities', 'error', null, error.message);
         throw error;
       }
     });
 
-    // Stage 3: Categorize
-    const categorizedStartups = await step.run('categorize', async () => {
-      await updateJobStage(jobId, 'categorize', 'running');
+    // Phase 3.0: Build Target List
+    const startups = await step.run('build-target-list', async () => {
+      await updateJobStage(jobId, 'targets', 'running');
       try {
-        const { categorizeStartups } = await import('./pipeline/categorize');
-        const result = await categorizeStartups({ startups, candidateProfile, searchParams });
-        await updateJobStage(jobId, 'categorize', 'completed', result);
+        const { buildTargetList } = await import('./pipeline/build-target-list');
+        const result = await buildTargetList({ candidateProfile, opportunities, searchParams });
+        await updateJobStage(jobId, 'targets', 'completed', result);
         return result;
       } catch (error) {
-        await updateJobStage(jobId, 'categorize', 'error', null, error.message);
+        await updateJobStage(jobId, 'targets', 'error', null, error.message);
         throw error;
       }
     });
 
-    // Stage 4: Enrich
-    const enrichedStartups = await step.run('enrich', async () => {
-      await updateJobStage(jobId, 'enrich', 'running');
+    // Phase 3.1: Populate Context
+    const enrichedStartups = await step.run('populate-context', async () => {
+      await updateJobStage(jobId, 'context', 'running');
       try {
-        const { enrichStartups } = await import('./pipeline/enrich-startups');
-        const result = await enrichStartups({ categorizedStartups });
-        await updateJobStage(jobId, 'enrich', 'completed', result);
+        const { populateContext } = await import('./pipeline/populate-context');
+        const result = await populateContext({ startups, candidateProfile, opportunities });
+        await updateJobStage(jobId, 'context', 'completed', result);
         return result;
       } catch (error) {
-        await updateJobStage(jobId, 'enrich', 'error', null, error.message);
+        await updateJobStage(jobId, 'context', 'error', null, error.message);
         throw error;
       }
     });
 
-    // Stage 5: Outreach
-    const outreachStartups = await step.run('outreach', async () => {
-      await updateJobStage(jobId, 'outreach', 'running');
-      try {
-        const { generateOutreach } = await import('./pipeline/generate-outreach');
-        const result = await generateOutreach({ categorizedStartups: enrichedStartups, candidateProfile });
-        await updateJobStage(jobId, 'outreach', 'completed', result);
-        return result;
-      } catch (error) {
-        await updateJobStage(jobId, 'outreach', 'error', null, error.message);
-        throw error;
-      }
-    });
-
-    // Stage 6: Sheets
-    const sheetsResult = await step.run('sheets', async () => {
+    // Phase 4.0: Write Sheets
+    const sheetsResult = await step.run('write-sheets', async () => {
       await updateJobStage(jobId, 'sheets', 'running');
       try {
         const { writeSheets } = await import('./pipeline/write-sheets');
-        const result = await writeSheets({ categorizedStartups: outreachStartups, candidateData });
+        const result = await writeSheets({ startups: enrichedStartups, candidateData });
         await updateJobStage(jobId, 'sheets', 'completed', result);
         return result;
       } catch (error) {
@@ -93,7 +85,7 @@ export const pipelineFunction = inngest.createFunction(
       }
     });
 
-    // Stage 7: Notify
+    // Phase 4.1: Notify (optional)
     const notifyResult = await step.run('notify', async () => {
       await updateJobStage(jobId, 'notify', 'running');
       try {
@@ -107,6 +99,6 @@ export const pipelineFunction = inngest.createFunction(
       }
     });
 
-    return { candidateProfile, sheetsResult, notifyResult };
+    return { candidateProfile, opportunities, sheetsResult, notifyResult };
   }
 );

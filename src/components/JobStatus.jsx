@@ -4,23 +4,43 @@ import { useState, useEffect } from 'react';
 
 const theme = { bg: '#0a0a0a', fg: '#ededed', accent: '#3b82f6', muted: '#888', surface: '#141414', border: '#222' };
 
-const STAGE_LABELS = {
-  profile: 'Profile Candidate',
-  discover: 'Discover Startups',
-  categorize: 'Categorize & Score',
-  enrich: 'Enrich Data',
-  outreach: 'Generate Outreach',
-  sheets: 'Export to Sheets',
-  notify: 'Send Notification',
-};
-
-const STAGE_ORDER = ['profile', 'discover', 'categorize', 'enrich', 'outreach', 'sheets', 'notify'];
+const PHASES = [
+  {
+    label: 'Operator Lens',
+    stages: [
+      { key: 'analyze', label: 'Analyze Candidate Profile' },
+      { key: 'opportunities', label: 'Identify Best-Fit Opportunities' },
+    ],
+  },
+  {
+    label: 'Enrich',
+    stages: [
+      { key: 'targets', label: 'Build Target List' },
+      { key: 'context', label: 'Populate Outreach Context' },
+    ],
+  },
+  {
+    label: 'Output',
+    stages: [
+      { key: 'sheets', label: 'Generate Google Sheet' },
+      { key: 'notify', label: 'Send Notification' },
+    ],
+  },
+];
 
 function StatusIcon({ status }) {
   if (status === 'completed') return <span style={{ color: '#22c55e', fontSize: 18 }}>&#10003;</span>;
   if (status === 'running') return <span style={{ color: theme.accent, fontSize: 18, animation: 'pulse 1.5s infinite' }}>&#9679;</span>;
   if (status === 'error') return <span style={{ color: '#ef4444', fontSize: 18 }}>&#10007;</span>;
   return <span style={{ color: theme.muted, fontSize: 18 }}>&#9675;</span>;
+}
+
+function getPhaseStatus(phase, stages) {
+  const statuses = phase.stages.map(s => stages?.[s.key]?.status || 'pending');
+  if (statuses.some(s => s === 'error')) return 'error';
+  if (statuses.every(s => s === 'completed')) return 'completed';
+  if (statuses.some(s => s === 'running')) return 'running';
+  return 'pending';
 }
 
 export default function JobStatus({ jobId, onBack }) {
@@ -71,17 +91,30 @@ export default function JobStatus({ jobId, onBack }) {
           </a>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {STAGE_ORDER.map((stage) => {
-            const stageData = job?.stages?.[stage] || { status: 'pending' };
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {PHASES.map((phase) => {
+            const phaseStatus = getPhaseStatus(phase, job?.stages);
             return (
-              <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 8 }}>
-                <StatusIcon status={stageData.status} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ color: theme.fg, fontSize: 14, margin: 0 }}>{STAGE_LABELS[stage]}</p>
-                  {stageData.error && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{stageData.error}</p>}
+              <div key={phase.label}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <StatusIcon status={phaseStatus} />
+                  <p style={{ color: theme.fg, fontSize: 15, fontWeight: 600, margin: 0 }}>{phase.label}</p>
                 </div>
-                <span style={{ color: theme.muted, fontSize: 12, textTransform: 'capitalize' }}>{stageData.status}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 26 }}>
+                  {phase.stages.map((stage) => {
+                    const stageData = job?.stages?.[stage.key] || { status: 'pending' };
+                    return (
+                      <div key={stage.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 8 }}>
+                        <StatusIcon status={stageData.status} />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ color: theme.fg, fontSize: 13, margin: 0 }}>{stage.label}</p>
+                          {stageData.error && <p style={{ color: '#ef4444', fontSize: 11, margin: '4px 0 0' }}>{stageData.error}</p>}
+                        </div>
+                        <span style={{ color: theme.muted, fontSize: 11, textTransform: 'capitalize' }}>{stageData.status}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
