@@ -54,3 +54,11 @@ export async function updateJobStage(jobId, stage, status, result = null, error 
 export async function getJob(jobId) {
   return await kvStore.get(`job:${jobId}`);
 }
+
+export async function getPipelineData(candidateId, step) {
+  return await kvStore.get(`pipeline:${candidateId}:${step}`);
+}
+
+export async function setPipelineData(candidateId, step, data) {
+  await kvStore.set(`pipeline:${candidateId}:${step}`, data);
+}
